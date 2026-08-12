@@ -7,3 +7,24 @@ node_modules/
 Thumbs.db
 coverage/
 .cache/
+.codex/
+auth.json
+
+# Never publish local Codex data or generated usage snapshots.
+sessions/
+archived_sessions/
+session_index.jsonl
+usage-snapshot*.json
+*.jsonl
+*.sqlite
+*.sqlite-*
+*.db
+
+# Private keys and common credential exports.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+credentials*.json
+service-account*.json
