@@ -12,6 +12,58 @@ const EMPTY_USAGE = Object.freeze({
   totalTokens: 0,
 });
 
+export const ANALYZER_VERSION = 2;
+
+export function resolveCodexSource(options = {}) {
+  const codexHome = options.codexHome || process.env.CODEX_HOME || path.join(homedir(), ".codex");
+  const explicitlyScoped = Boolean(
+    options.sessionsPath
+    || options.archivedSessionsPath
+    || options.sessionIndexPath
+    || process.env.CODEX_SESSIONS_PATH
+    || process.env.CODEX_ARCHIVED_SESSIONS_PATH
+    || process.env.CODEX_SESSION_INDEX_PATH
+  );
+  return {
+    mode: options.mode || process.env.CODEX_SOURCE_MODE || (explicitlyScoped ? "scoped" : "local"),
+    sessionsPath: options.sessionsPath || process.env.CODEX_SESSIONS_PATH || path.join(codexHome, "sessions"),
+    archivedSessionsPath: options.archivedSessionsPath || process.env.CODEX_ARCHIVED_SESSIONS_PATH || path.join(codexHome, "archived_sessions"),
+    sessionIndexPath: options.sessionIndexPath || process.env.CODEX_SESSION_INDEX_PATH || path.join(codexHome, "session_index.jsonl"),
+  };
+}
+
+async function sourcePathAvailable(filePath, kind) {
+  try {
+    const info = await stat(filePath);
+    return kind === "directory" ? info.isDirectory() : info.isFile();
+  } catch (error) {
+    if (["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(error.code)) return false;
+    throw error;
+  }
+}
+
+export async function inspectCodexSource(options = {}) {
+  const source = resolveCodexSource(options);
+  const [sessionsAvailable, archivedSessionsAvailable, sessionIndexAvailable] = await Promise.all([
+    sourcePathAvailable(source.sessionsPath, "directory"),
+    sourcePathAvailable(source.archivedSessionsPath, "directory"),
+    sourcePathAvailable(source.sessionIndexPath, "file"),
+  ]);
+  return {
+    mode: source.mode,
+    sessionsAvailable,
+    archivedSessionsAvailable,
+    sessionIndexAvailable,
+  };
+}
+
+function assertUsableSource(status) {
+  if (status.sessionsAvailable || status.archivedSessionsAvailable) return;
+  const error = new Error("Aucun dossier de sessions Codex lisible. Vérifiez la configuration de la source.");
+  error.code = "CODEX_SOURCE_UNAVAILABLE";
+  throw error;
+}
+
 function number(value) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
@@ -43,7 +95,7 @@ async function walkJsonl(root) {
     try {
       entries = await readdir(directory, { withFileTypes: true });
     } catch (error) {
-      if (error.code === "ENOENT") return;
+      if (["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(error.code)) return;
       throw error;
     }
     await Promise.all(entries.map(async (entry) => {
@@ -56,10 +108,10 @@ async function walkJsonl(root) {
   return files;
 }
 
-export async function loadThreadNames(codexHome) {
+export async function loadThreadNames(codexHome, sessionIndexPath = path.join(codexHome, "session_index.jsonl")) {
   const names = new Map();
   try {
-    const content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8");
+    const content = await readFile(sessionIndexPath, "utf8");
     for (const line of content.split(/\r?\n/)) {
       if (!line.trim()) continue;
       try {
@@ -68,12 +120,12 @@ export async function loadThreadNames(codexHome) {
       } catch { /* Ignore a partially written index line. */ }
     }
   } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    if (!["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(error.code)) throw error;
   }
   return names;
 }
 
-function createTurn(id, timestamp, model, effort) {
+function createTurn(id, timestamp, model, effort, serviceTier) {
   return {
     id,
     startedAt: timestamp,
@@ -81,6 +133,7 @@ function createTurn(id, timestamp, model, effort) {
     durationMs: null,
     model: model || "unknown",
     effort: effort || null,
+    serviceTier: serviceTier || "default",
     calls: 0,
     usage: { ...EMPTY_USAGE },
   };
@@ -93,6 +146,7 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
   let currentTurnId = null;
   let currentModel = "unknown";
   let currentEffort = null;
+  let currentServiceTier = "default";
   let userMessages = 0;
   let assistantMessages = 0;
   const turns = new Map();
@@ -131,10 +185,12 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
         currentTurnId = payload.turn_id || currentTurnId;
         currentModel = payload.model || currentModel;
         currentEffort = payload.effort || currentEffort;
+        currentServiceTier = payload.service_tier || currentServiceTier;
         const turn = turns.get(currentTurnId);
         if (turn) {
           turn.model = currentModel;
           turn.effort = currentEffort;
+          turn.serviceTier = currentServiceTier;
         }
         continue;
       }
@@ -142,12 +198,16 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
       if (row.type !== "event_msg") continue;
       const payload = row.payload || {};
 
-      if (payload.type === "task_started") {
+      if (payload.type === "thread_settings_applied") {
+        currentServiceTier = payload.thread_settings?.service_tier || currentServiceTier;
+        const turn = currentTurnId ? turns.get(currentTurnId) : null;
+        if (turn && turn.calls === 0) turn.serviceTier = currentServiceTier;
+      } else if (payload.type === "task_started") {
         currentTurnId = payload.turn_id || `turn-${turns.size + 1}`;
         if (!turns.has(currentTurnId)) {
           // `started_at` has existed both as Unix seconds and ISO text. The event
           // timestamp is stable across the observed formats and is preferable.
-          turns.set(currentTurnId, createTurn(currentTurnId, timestamp || payload.started_at, currentModel, currentEffort));
+          turns.set(currentTurnId, createTurn(currentTurnId, timestamp || payload.started_at, currentModel, currentEffort, currentServiceTier));
         }
       } else if (payload.type === "user_message") {
         userMessages += 1;
@@ -161,6 +221,8 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
           timestamp,
           turnId: currentTurnId,
           model,
+          effort: turn?.effort || currentEffort || null,
+          serviceTier: turn?.serviceTier || currentServiceTier || "default",
           usage,
         });
         if (turn) {
@@ -214,19 +276,38 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
 }
 
 export async function analyzeCodexUsage(options = {}) {
-  const codexHome = options.codexHome || process.env.CODEX_HOME || path.join(homedir(), ".codex");
-  const names = await loadThreadNames(codexHome);
-  const roots = [path.join(codexHome, "sessions"), path.join(codexHome, "archived_sessions")];
+  const source = resolveCodexSource(options);
+  const sourceStatus = await inspectCodexSource(options);
+  assertUsableSource(sourceStatus);
+  const names = await loadThreadNames(path.dirname(source.sessionIndexPath), source.sessionIndexPath);
+  const roots = [source.sessionsPath, source.archivedSessionsPath];
   const fileLists = await Promise.all(roots.map(walkJsonl));
   const files = fileLists.flat();
   const sessions = [];
-  const concurrency = Math.max(1, Math.min(16, Number(options.concurrency) || 8));
+  const previousSessions = options.previousData?.analyzerVersion === ANALYZER_VERSION
+    ? options.previousData.sessions || []
+    : [];
+  const previousByFile = new Map(previousSessions
+    .filter((session) => session.filePath)
+    .map((session) => [session.filePath, session]));
+  const concurrency = Math.max(1, Math.min(32, Number(options.concurrency) || 16));
   let cursor = 0;
   await Promise.all(Array.from({ length: concurrency }, async () => {
     while (cursor < files.length) {
       const file = files[cursor++];
       try {
-        sessions.push(await parseSessionFile(file, names));
+        const info = await stat(file);
+        const previous = previousByFile.get(file);
+        if (previous && previous.fileSize === info.size && previous.fileModifiedAtMs === info.mtimeMs) {
+          const title = names.get(previous.id) || previous.title || "Conversation sans titre";
+          sessions.push(title === previous.title ? previous : { ...previous, title });
+        } else {
+          sessions.push({
+            ...await parseSessionFile(file, names),
+            fileSize: info.size,
+            fileModifiedAtMs: info.mtimeMs,
+          });
+        }
       } catch (error) {
         sessions.push({ filePath: file, error: error.message });
       }
@@ -241,24 +322,41 @@ export async function analyzeCodexUsage(options = {}) {
   }
 
   return {
+    analyzerVersion: ANALYZER_VERSION,
     generatedAt: new Date().toISOString(),
-    codexHome,
+    source: sourceStatus,
     sessions: [...unique.values()].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))),
     errors: sessions.filter((item) => item.error),
   };
 }
 
-export async function usageFingerprint(codexHome = process.env.CODEX_HOME || path.join(homedir(), ".codex")) {
-  const roots = [path.join(codexHome, "sessions"), path.join(codexHome, "archived_sessions")];
+export async function usageFingerprint(options = {}) {
+  if (typeof options === "string") options = { codexHome: options };
+  const source = resolveCodexSource(options);
+  const sourceStatus = await inspectCodexSource(options);
+  assertUsableSource(sourceStatus);
+  const roots = [source.sessionsPath, source.archivedSessionsPath];
   const files = (await Promise.all(roots.map(walkJsonl))).flat();
   let latest = 0;
   let bytes = 0;
-  for (const file of files) {
-    try {
-      const info = await stat(file);
-      latest = Math.max(latest, info.mtimeMs);
-      bytes += info.size;
-    } catch { /* File may move to archives while scanning. */ }
+  let cursor = 0;
+  const concurrency = Math.min(64, Math.max(1, files.length));
+  await Promise.all(Array.from({ length: concurrency }, async () => {
+    while (cursor < files.length) {
+      const file = files[cursor++];
+      try {
+        const info = await stat(file);
+        latest = Math.max(latest, info.mtimeMs);
+        bytes += info.size;
+      } catch { /* File may move to archives while scanning. */ }
+    }
+  }));
+  let indexFingerprint = "missing";
+  try {
+    const info = await stat(source.sessionIndexPath);
+    if (info.isFile()) indexFingerprint = `${info.mtimeMs}:${info.size}`;
+  } catch (error) {
+    if (!["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(error.code)) throw error;
   }
-  return `${files.length}:${latest}:${bytes}`;
+  return `${files.length}:${latest}:${bytes}:${indexFingerprint}`;
 }
