@@ -2,7 +2,7 @@ import { codexCreditsOfCalls, fastMultiplierFor, usageProfilesOfCalls } from "./
 import { DEFAULT_API_PRICING, apiCostOfCalls, apiPriceFor, mergeApiPricing } from "./api-pricing.js";
 import { ADDITIONAL_I18N, LOCALE_TAGS, resolveLanguage } from "./translations.js";
 import { chartDrilldownBuckets, chartDrilldownFilterRange, nextChartGranularity, percentageOf, stackedChartSegments } from "./visualization.js";
-import { latestTimestamp, normalizeCustomRange, resolveDateRange, resolveWeeklyRange, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
+import { latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
 import { buildQuotaForecast, weeklyForecastTicks } from "./quota-forecast.js";
 import { OVERVIEW_PROJECT_LIMIT, projectIdentity } from "./project-identity.js";
 
@@ -600,6 +600,24 @@ function currentQuotaResetAt() {
   return resolveWeeklyRange(quota).resetsAt || (quota?.resetsAt ? new Date(quota.resetsAt) : null);
 }
 
+function formatQuotaCountdown(resetAt, now = new Date()) {
+  const parts = quotaCountdownParts(resetAt, now);
+  if (!parts) return "";
+  const unit = (value, name, padded = false) => new Intl.NumberFormat(locale(), {
+    style: "unit",
+    unit: name,
+    unitDisplay: "narrow",
+    useGrouping: false,
+    minimumIntegerDigits: padded ? 2 : 1,
+  }).format(value);
+  const values = [];
+  if (parts.days) values.push(unit(parts.days, "day"));
+  if (parts.days || parts.hours) values.push(unit(parts.hours, "hour", Boolean(parts.days)));
+  if (parts.days || parts.hours || parts.minutes) values.push(unit(parts.minutes, "minute", Boolean(parts.days || parts.hours)));
+  values.push(unit(parts.seconds, "second", Boolean(parts.days || parts.hours || parts.minutes)));
+  return `${t("quota.reset")} · ${values.join(" ")}`;
+}
+
 function renderQuotaNav() {
   const quota = state.data?.weeklyQuota;
   const available = quota && Number.isFinite(quota.remainingPercent);
@@ -607,13 +625,16 @@ function renderQuotaNav() {
     ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(quota.remainingPercent) })
     : "—";
   const resetAt = available ? currentQuotaResetAt() : null;
-  const resetText = resetAt ? resetAt.toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" }) : "";
+  const resetText = resetAt ? resetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "";
+  const countdownText = resetAt ? formatQuotaCountdown(resetAt) : "";
   $$("[data-quota-nav-remaining]").forEach((element) => { element.textContent = remainingText; });
   $$("[data-quota-nav-reset]").forEach((element) => { element.textContent = resetText; });
+  $$("[data-quota-nav-countdown]").forEach((element) => { element.textContent = countdownText; });
   $$('[data-nav-section="quota"]').forEach((link) => {
     const parts = [t("nav.quota")];
     if (available) parts.push(remainingText);
     if (resetText) parts.push(resetText);
+    if (countdownText) parts.push(countdownText);
     link.setAttribute("aria-label", parts.join(", "));
   });
 }
@@ -1495,10 +1516,16 @@ async function initializeDashboard() {
 
 void initializeDashboard();
 setInterval(() => {
+  if (!document.hidden && state.data) renderQuotaNav();
+}, 1_000);
+setInterval(() => {
   if (!document.hidden) void pollForNewData();
 }, POLL_INTERVAL_MS);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) void pollForNewData();
+  if (!document.hidden) {
+    renderQuotaNav();
+    void pollForNewData();
+  }
 });
 
 let pollRequest = null;

@@ -18,6 +18,12 @@ jobs:
           node-version: 22
       - name: Validate source and tests
         run: npm run check
+      - name: Install Mesh ingress dependencies
+        run: npm ci --prefix mesh-ingress
+      - name: Validate Mesh ingress
+        run: npm run check --prefix mesh-ingress
+      - name: Audit Mesh ingress production dependencies
+        run: npm audit --omit=dev --audit-level=high --prefix mesh-ingress
       - name: Install Sites dependencies
         run: npm ci --prefix sites-hub
       - name: Validate Sites build and tests

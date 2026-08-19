@@ -27,6 +27,25 @@ test("credential files are excluded from source control and Docker context", asy
   assert.match(dockerignore, /^auth\.json$/m);
 });
 
+test("reporting machines never receive a shared private-Site credential", async () => {
+  const clientFiles = await Promise.all([
+    "../src/mesh-agent.mjs",
+    "../src/usage-collector.mjs",
+    "../compose.yaml",
+    "../.env.example",
+    "../docs/reporting-agent.md",
+  ].map((file) => readFile(new URL(file, import.meta.url), "utf8")));
+  const clientSource = clientFiles.join("\n");
+  assert.doesNotMatch(clientSource, /MESH_SITES_BYPASS_TOKEN/);
+  assert.doesNotMatch(clientSource, /OAI-Sites-Authorization/i);
+  assert.match(clientSource, /one-time enrollment code|code expires after ten minutes/i);
+
+  const ingress = await readFile(new URL("../mesh-ingress/src/worker.mjs", import.meta.url), "utf8");
+  assert.match(ingress, /SITES_UPSTREAM_AUTH_TOKEN/);
+  assert.match(ingress, /oai-sites-authorization/);
+  assert.doesNotMatch(ingress, /logger\.(?:log|info|warn|error)\([^\n]*(?:body|headers|token)/i);
+});
+
 test("the strict CSP is kept without runtime inline styles", async () => {
   const [server, app] = await Promise.all([
     readFile(new URL("../server.mjs", import.meta.url), "utf8"),

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Replaced quota-history arrow glyphs with font-independent CSS chevrons and improved disabled-state visibility on mobile screens.
+- Replaced per-machine private-Site bypass credentials with a rate-limited public Mesh ingress; machines now use only one-time enrollment and their own revocable Ed25519 identity.
 
 ## 1.2.0 — 2026-08-15
 

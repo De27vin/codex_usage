@@ -65,6 +65,21 @@ export function resolveWeeklyRange(quota, now = new Date()) {
   };
 }
 
+export function quotaCountdownParts(resetAt, now = new Date()) {
+  const resetTime = resetAt instanceof Date ? resetAt.getTime() : Date.parse(resetAt);
+  const nowTime = now instanceof Date ? now.getTime() : Date.parse(now);
+  if (!Number.isFinite(resetTime) || !Number.isFinite(nowTime)) return null;
+
+  let remainingSeconds = Math.max(0, Math.ceil((resetTime - nowTime) / 1_000));
+  const days = Math.floor(remainingSeconds / 86_400);
+  remainingSeconds -= days * 86_400;
+  const hours = Math.floor(remainingSeconds / 3_600);
+  remainingSeconds -= hours * 3_600;
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds - minutes * 60;
+  return { days, hours, minutes, seconds };
+}
+
 export function timestampInRange(timestamp, range) {
   const time = Date.parse(timestamp);
   const start = range?.start?.getTime();

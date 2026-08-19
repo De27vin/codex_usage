@@ -17,7 +17,8 @@ function relative(value: string | null): string {
 export default function MeshDashboard({ displayName, signOutPath }: { displayName: string; signOutPath: string }) {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState("");
-  const [enrollment, setEnrollment] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [enrollment, setEnrollment] = useState<{ code: string; expiresAt: string; hubUrl: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const load = useCallback(async () => {
     const response = await fetch("/api/mesh/usage", { cache: "no-store" });
     if (!response.ok) throw new Error("Les données Mesh ne sont pas disponibles.");
@@ -39,10 +40,22 @@ export default function MeshDashboard({ displayName, signOutPath }: { displayNam
 
   async function createEnrollment() {
     setError("");
+    setCopied(false);
     const response = await fetch("/api/mesh/enrollments", { method: "POST" });
     const body = await response.json();
     if (!response.ok) return setError(body.error || "Création impossible.");
     setEnrollment(body);
+  }
+
+  async function copyAssociationCommand() {
+    if (!enrollment) return;
+    const command = `npm run start:agent -- --hub-url "${enrollment.hubUrl}" --associate "${enrollment.code}"`;
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+    } catch {
+      setError("La copie automatique a échoué. Sélectionnez la commande manuellement.");
+    }
   }
 
   async function revoke(node: Node) {
@@ -67,7 +80,14 @@ export default function MeshDashboard({ displayName, signOutPath }: { displayNam
       </section>
       <section className="mesh-panel">
         <div className="panel-heading"><div><p className="eyebrow">RÉSEAU</p><h2>Machines enrôlées</h2></div><button type="button" onClick={createEnrollment}>Ajouter une machine</button></div>
-        {enrollment && <div className="enrollment" role="status"><div><strong>Code à usage unique</strong><code>{enrollment.code}</code></div><small>Expire à {new Date(enrollment.expiresAt).toLocaleTimeString("fr-FR")}. Copiez-le dans la configuration de l’agent.</small></div>}
+        {enrollment && <div className="enrollment" role="status">
+          <div className="enrollment-copy">
+            <strong>Commande d’association à usage unique</strong>
+            <code>{`npm run start:agent -- --hub-url "${enrollment.hubUrl}" --associate "${enrollment.code}"`}</code>
+            <small>À exécuter dans le dossier du projet sur la nouvelle machine. Le code expire à {new Date(enrollment.expiresAt).toLocaleTimeString("fr-FR")} et disparaît après sa première utilisation.</small>
+          </div>
+          <button type="button" onClick={copyAssociationCommand}>{copied ? "Copiée" : "Copier la commande"}</button>
+        </div>}
         <div className="node-list">
           {!usage && !error && <p className="loading">Chargement du réseau…</p>}
           {usage && usage.nodes.length === 0 && <p className="loading">Aucune machine. Créez un code pour enrôler votre premier PC.</p>}

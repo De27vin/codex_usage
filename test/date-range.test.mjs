@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultCustomRange, latestTimestamp, normalizeCustomRange, resolveDateRange, resolveWeeklyRange, timestampInRange, toDateTimeLocalValue } from "../public/date-range.js";
+import { defaultCustomRange, latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, timestampInRange, toDateTimeLocalValue } from "../public/date-range.js";
 
 test("stores datetime-local values without converting their local wall time", () => {
   const date = new Date(2026, 7, 13, 14, 5);
@@ -57,4 +57,16 @@ test("a reset more than one week ahead is rewound to the current cycle", () => {
   const range = resolveWeeklyRange({ windowMinutes: 10080, resetsAt: "2026-09-03T12:00:00.000Z" }, now);
   assert.equal(range.start.toISOString(), "2026-08-13T12:00:00.000Z");
   assert.equal(range.resetsAt.toISOString(), "2026-08-20T12:00:00.000Z");
+});
+
+test("weekly quota countdown exposes days, hours, minutes, and seconds", () => {
+  assert.deepEqual(
+    quotaCountdownParts("2026-08-20T12:00:00.000Z", "2026-08-19T08:57:54.500Z"),
+    { days: 1, hours: 3, minutes: 2, seconds: 6 },
+  );
+  assert.deepEqual(
+    quotaCountdownParts("2026-08-19T08:57:54.000Z", "2026-08-19T08:57:55.000Z"),
+    { days: 0, hours: 0, minutes: 0, seconds: 0 },
+  );
+  assert.equal(quotaCountdownParts("not-a-date"), null);
 });

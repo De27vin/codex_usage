@@ -83,9 +83,10 @@ The existing Site uses a D1 binding named `DB`. In the Site settings:
 
 1. keep the D1 database bound as `DB`;
 2. apply only reviewed, checked-in migrations;
-3. configure hosted environment values and secrets in Sites settings;
+3. configure `MESH_PUBLIC_INGRESS_URL` with the canonical HTTPS ingress origin and keep all secrets in Sites settings;
 4. choose the narrowest access policy that fits the intended audience;
-5. for a private Site that accepts non-interactive reporting agents, create the required machine bypass token and provide it to each agent as `MESH_SITES_BYPASS_TOKEN`.
+5. deploy the dedicated [public Mesh ingress](mesh-ingress.md), storing the Site bypass credential only as its encrypted server-side secret;
+6. let `/admin` generate the ready-to-copy association command; do not manually provision a credential on reporting machines.
 
 Never store a secret in `.openai/hosting.json`. Do not paste secret values into prompts, documentation, screenshots, or committed `.env` files.
 
@@ -118,4 +119,4 @@ Changing a secret or hosted environment value does not update a running deployme
 
 ## Next step: connect machines
 
-Once the Site is deployed, open `/admin`, create a one-time enrollment code, and follow [Install a reporting agent](reporting-agent.md) on every computer that should contribute minimized usage data.
+Once both the private Site and public ingress are deployed, sign in with ChatGPT at `/admin`, select **Add a machine**, and copy the generated association command to the target computer. No Site credential is provisioned on that machine.

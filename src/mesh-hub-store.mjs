@@ -72,8 +72,8 @@ export class MeshHubStore {
   }
 
   async createEnrollment(now = Date.now()) {
-    const raw = randomBytes(8).toString("hex").toUpperCase();
-    const code = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12)}`;
+    const raw = randomBytes(16).toString("hex").toUpperCase();
+    const code = raw.match(/.{4}/g).join("-");
     const codeHash = sha256(code);
     const expiresAt = new Date(now + this.enrollmentTtlMs).toISOString();
     this.state.enrollments[codeHash] = { expiresAt, usedAt: null };
