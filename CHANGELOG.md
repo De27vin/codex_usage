@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replaced quota-history arrow glyphs with font-independent CSS chevrons and improved disabled-state visibility on mobile screens.
+
 ## 1.2.0 — 2026-08-15
 
 - Added a seven-day quota forecast with daily boundaries, EMA-weighted consumption, and localized Weekly Quota navigation.

@@ -8,6 +8,8 @@ Local Usage turns the Codex session metadata stored on your computer into a fast
 
 [**Stable release 1.2.0**](https://github.com/capisoft-lib/codex_usage/releases/tag/v1.2.0) · [Docker image 1.2.0](https://hub.docker.com/r/capitaine/codex-usage-dashboard) · [AGPL-3.0-or-later](LICENSE) · [Changelog](CHANGELOG.md) · [CI status](https://github.com/capisoft-lib/codex_usage/actions/workflows/ci.yml)
 
+Setup guides: [deploy the central dashboard with OpenAI Sites](docs/sites-deployment.md) · [install a reporting agent](docs/reporting-agent.md)
+
 ## What the application shows
 
 - API-equivalent cost using the observed Standard or Fast service tier, split between fresh input, cached input, and output;
@@ -217,6 +219,8 @@ Compose deliberately refuses to create missing host paths. `docker compose down`
 
 An agent can be added to any Windows, macOS, or Linux computer that runs Codex and can run Node.js or Docker. Each machine remains authoritative for its own logs: it analyzes locally, removes disallowed fields, signs the result with an Ed25519 key created on that machine, and pushes the minimized snapshot to the hub.
 
+For a complete installation procedure, including Node.js and Docker operation, verification, updates, revocation, and recovery, read [Install a reporting agent](docs/reporting-agent.md).
+
 ### 1. Create a one-time enrollment code
 
 For a Sites hub, sign in to the deployed Site, open `/admin`, and select **Add a machine**. The generated code expires after ten minutes and can be used once.
@@ -270,6 +274,27 @@ Run it with the same three read-only Codex mounts, the `/app-cache` volume, and 
 ## OpenAI Sites as the central dashboard
 
 [OpenAI Sites](https://learn.chatgpt.com/docs/sites) can build, host, refine, and share web applications from ChatGPT. Sites is currently documented as a public beta; availability and limits depend on plan, region, and workspace settings. Site management happens in ChatGPT on the web or desktop, rather than from the standalone Codex CLI or IDE extension.
+
+You do not install this Site *inside* Codex. Open this repository in the desktop app and give the deployment request directly to Codex in a conversation where Sites is available. Mentioning `@Sites` starts that workflow explicitly. ChatGPT on the web can then manage the existing Site; a web conversation can update source only when that source is available to it. The detailed procedure is in [Deploy the central dashboard with OpenAI Sites](docs/sites-deployment.md).
+
+For this existing project, give Codex this request first:
+
+```text
+@Sites Prepare the existing Sites application in sites-hub/. Reuse the project
+linked by sites-hub/.openai/hosting.json; do not create a new Site. Check
+compatibility, run the relevant tests and build, and save a new version without
+deploying it. Show me the result before changing access, secrets, or production.
+```
+
+After reviewing the saved version, ask:
+
+```text
+Deploy the approved saved version. Keep the current access policy, database
+binding, and runtime settings unchanged, then give me the production URL and
+deployment status.
+```
+
+Saving and deploying are deliberately separate: every Sites deployment URL is a production URL. If immediate publication is intended, Codex can perform both operations in one request, but the two-step prompt above is the safer default.
 
 This repository's Sites application lives in `sites-hub/`. It provides:
 
@@ -477,6 +502,7 @@ Copyright © 2026 capisoft-lib and contributors.
 ```text
 public/                  Editable source for the shared browser interface
 dist/dashboard/          Generated UI bundle for local, Docker, and Sites builds
+docs/                    Sites deployment and reporting-agent guides
 scripts/                 Deterministic UI build and synchronization tools
 src/analyzer.mjs         Read-only Codex session parser
 src/usage-collector.mjs  Reusable local collector and optional Mesh sender
