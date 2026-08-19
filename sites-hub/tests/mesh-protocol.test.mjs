@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSignedEnvelope, generateNodeIdentity } from "../../src/mesh-protocol.mjs";
 import { MeshRequestError, readJsonBody, validatePayload, validateReadPayload, verifyEnvelope } from "../lib/mesh.ts";
+import { publicMeshIngressUrl } from "../lib/mesh-config.ts";
+
+test("Sites exposes only a canonical HTTPS ingress origin in association commands", () => {
+  assert.equal(publicMeshIngressUrl("https://mesh.example/"), "https://mesh.example");
+  assert.throws(() => publicMeshIngressUrl("http://mesh.example"), /HTTPS origin/);
+  assert.throws(() => publicMeshIngressUrl("https://mesh.example/admin"), /HTTPS origin/);
+  assert.throws(() => publicMeshIngressUrl("https://user:secret@mesh.example"), /HTTPS origin/);
+});
 
 test("Sites verifies envelopes produced by the desktop agent", async () => {
   const identity = generateNodeIdentity();

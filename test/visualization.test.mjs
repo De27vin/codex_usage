@@ -94,3 +94,10 @@ test("quota navigation arrows do not depend on mobile font glyph support", () =>
   assert.match(styles, /\.quota-history-icon\s*\{[^}]*border-top:\s*2px solid currentColor;[^}]*border-right:\s*2px solid currentColor;/);
   assert.match(styles, /\.quota-history-button:disabled\s*\{[^}]*opacity:\s*\.58;/);
 });
+
+test("sidebar quota shows the reset date and live countdown", () => {
+  assert.equal((markup.match(/data-quota-nav-countdown/g) || []).length, 2);
+  assert.match(app, /toLocaleString\(locale\(\), \{ dateStyle: "medium", timeStyle: "short" \}\)/);
+  assert.match(app, /setInterval\(\(\) => \{\s*if \(!document\.hidden && state\.data\) renderQuotaNav\(\);\s*\}, 1_000\);/);
+  assert.match(styles, /\[data-quota-nav-countdown\][^}]*font-variant-numeric:\s*tabular-nums;/s);
+});

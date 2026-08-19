@@ -15,7 +15,6 @@ services:
     environment:
       REFRESH_INTERVAL_MS: ${REFRESH_INTERVAL_MS:-60000}
       MESH_HUB_URL: ${MESH_HUB_URL:-}
-      MESH_SITES_BYPASS_TOKEN: ${MESH_SITES_BYPASS_TOKEN:-}
       # Preserve the host PC name in containers; MESH_NODE_ALIAS remains an explicit override.
       MESH_NODE_ALIAS: ${MESH_NODE_ALIAS:-${COMPUTERNAME:-${HOSTNAME:-}}}
       MESH_ENROLLMENT_CODE: ${MESH_ENROLLMENT_CODE:-}

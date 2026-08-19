@@ -19,23 +19,22 @@ Each machine needs:
 
 - Codex session data under its local Codex directory;
 - Node.js 20 or newer, or Docker;
-- network access to the central hub over HTTPS when it is not local;
-- a one-time enrollment code created by the hub owner;
-- for a private OpenAI Site, its machine bypass token;
+- network access to the public Mesh ingress over HTTPS when the private Sites hub is used;
+- a one-time association command created by the hub owner;
 - a persistent writable location for the agent state file.
 
-The agent never needs an OpenAI API key and must never be given `auth.json`.
+The agent never needs an OpenAI API key, a Sites bypass token, or `auth.json`. A shared infrastructure credential must never be installed on a reporting machine.
 
-## 1. Create a one-time enrollment code
+## 1. Create a one-time association command
 
 For an OpenAI Sites hub:
 
 1. sign in to the deployed Site;
 2. open `/admin`;
 3. select **Add a machine**;
-4. copy the generated enrollment code.
+4. copy the generated command.
 
-The code expires after ten minutes and can be used once. Create it only when the target machine is ready.
+The command contains only the non-secret public ingress address and a code that expires after ten minutes and can be used once. Create it only when the target machine is ready.
 
 For a self-hosted hub, create the code through the administrator endpoint documented in the root [README](../README.md#self-hosted-central-hub).
 
@@ -48,35 +47,13 @@ git clone https://github.com/capisoft-lib/codex_usage.git
 cd codex_usage
 ```
 
-The root runtime has no third-party npm runtime dependencies. It reads the current user's Codex directory by default.
-
-Set the hub information in the process environment. Example for Windows PowerShell:
-
-```powershell
-$env:MESH_HUB_URL = "https://your-site.example"
-$env:MESH_NODE_ALIAS = "Office PC"
-$env:MESH_ENROLLMENT_CODE = "AAAA-BBBB-CCCC-DDDD"
-$env:MESH_AGENT_STATE_PATH = "$env:LOCALAPPDATA\CodexUsageDashboard\mesh-agent.json"
-$env:MESH_PROJECT_MODE = "hash"
-$env:MESH_INCLUDE_TITLES = "false"
-
-npm run start:agent
-```
-
-Example for macOS or Linux:
+The root runtime has no third-party npm runtime dependencies. It reads the current user's Codex directory by default. Paste the command copied from `/admin`; it is the same on Windows PowerShell, macOS, and Linux:
 
 ```bash
-export MESH_HUB_URL="https://your-site.example"
-export MESH_NODE_ALIAS="Office PC"
-export MESH_ENROLLMENT_CODE="AAAA-BBBB-CCCC-DDDD"
-export MESH_AGENT_STATE_PATH="$HOME/.local/state/codex-usage-dashboard/mesh-agent.json"
-export MESH_PROJECT_MODE="hash"
-export MESH_INCLUDE_TITLES="false"
-
-npm run start:agent
+npm run start:agent -- --hub-url "https://your-mesh-ingress.example" --associate "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-0000-1111"
 ```
 
-For a private OpenAI Site, also set `MESH_SITES_BYPASS_TOKEN` in the process environment. Treat it as a secret and do not put it in source code, a committed file, terminal screenshots, or support messages.
+For a private OpenAI Site, `MESH_HUB_URL` must be the dedicated public Mesh ingress URL, not the private Site URL. The ingress holds its upstream credential server-side and exposes no browser, dashboard, or administration route.
 
 Use `npm start` instead of `npm run start:agent` when the machine should also expose its local dashboard at [http://127.0.0.1:4317](http://127.0.0.1:4317).
 
@@ -90,19 +67,19 @@ A successful first run:
 4. prints a synchronization message;
 5. shows the machine as active under the Site's `/admin` page.
 
-After this succeeds, remove `MESH_ENROLLMENT_CODE` from the machine's persistent configuration. The state file replaces it for future starts.
+After this succeeds, start the process later with only `npm run start:agent`. The agent has persisted the ingress address and its machine-specific identity; the one-time code is neither retained nor needed.
 
 Protect `MESH_AGENT_STATE_PATH`. Deleting it creates a new signing identity and requires a fresh enrollment. Copying it to another machine would duplicate a trusted identity and must not be done.
 
 ## 4. Keep the agent running
 
-First run the agent interactively and verify enrollment. Then configure the command through the operating system's service manager:
+First run the association command interactively and verify enrollment. Then configure only `npm run start:agent` through the operating system's service manager:
 
 - Windows: Task Scheduler or a managed Windows service;
 - macOS: `launchd`;
 - Linux: `systemd` or another supervised service.
 
-Run it as the same user that owns the Codex session directory, give it write access only to its state/cache directory, and store secrets using the operating system's protected service configuration. Do not run it as an administrator or root unless the local environment makes that unavoidable.
+Run it as the same user that owns the Codex session directory and give it write access only to its state/cache directory. After enrollment, the machine has no shared secret: protect the state file because it contains that machine's private signing key. Do not run it as an administrator or root unless the local environment makes that unavoidable.
 
 ## Docker operation
 
@@ -133,7 +110,7 @@ Run it with:
 - `session_index.jsonl` mounted read-only;
 - a persistent volume mounted at `/app-cache`;
 - `MESH_AGENT_STATE_PATH=/app-cache/mesh-agent.json`;
-- the same `MESH_HUB_URL`, enrollment, privacy, and optional Site bypass settings used by the Node.js process;
+- the same `MESH_HUB_URL`, enrollment, and privacy settings used by the Node.js process;
 - no published HTTP port.
 
 ## Privacy settings
@@ -190,9 +167,9 @@ The headless command does not run in local-only mode. Set the exact hub base URL
 
 Generate a new code from `/admin`, confirm that it has not expired or already been used, and verify the machine clock.
 
-### A private Site rejects the request
+### The ingress is unavailable
 
-Set the Site's machine bypass token as `MESH_SITES_BYPASS_TOKEN`. It crosses the private Site access barrier but does not replace the one-time enrollment or signed Mesh protocol.
+Confirm that `MESH_HUB_URL` points to the public ingress and that its `/healthz` endpoint returns HTTP 200. Never work around an ingress failure by giving the private Site token to the machine.
 
 ### The machine enrolls again after every restart
 

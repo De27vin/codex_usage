@@ -7,6 +7,9 @@ credentials or raw session logs.
 
 For the complete save, review, deployment, access, and post-deployment workflow,
 read [Deploy the central dashboard with OpenAI Sites](../docs/sites-deployment.md).
+Non-interactive machines reach the signed Mesh routes through the separate
+[public Mesh ingress](../docs/mesh-ingress.md); they never receive a Site
+bypass credential.
 
 Enrolled machines may also send a signed `read` envelope to
 `POST /api/mesh/usage`. The node identity resolves its owner server-side, so
@@ -30,6 +33,11 @@ This project does not use `wrangler.jsonc`.
 The authenticated home page redirects to the shared dashboard at
 `/dashboard/index.html`. Machine enrollment and status remain on the
 separate `/admin` page.
+
+Set the server-side environment variable `MESH_PUBLIC_INGRESS_URL` to the
+canonical HTTPS origin of the dedicated Mesh ingress. `/admin` includes that
+non-secret address in its ready-to-copy association command. Reporting machines
+never receive the private Site credential.
 
 The root `public/` directory is the source of truth for the dashboard UI.
 `npm run dev` and `npm run build` automatically run `npm run sync:dashboard`

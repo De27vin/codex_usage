@@ -7,11 +7,35 @@ import { canonicalJson, createSignedEnvelope, generateNodeIdentity, normalizeNod
 const AGENT_STATE_VERSION = 1;
 const DEFAULT_BATCH_SIZE = 25;
 
-function createAgentState(alias) {
+export function normalizeMeshHubUrl(value) {
+  let url;
+  try {
+    url = new URL(String(value));
+  } catch {
+    throw new Error("L’adresse du hub Mesh est invalide.");
+  }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("L’adresse du hub Mesh doit être une origine HTTP(S) sans identifiants, chemin, paramètres ni fragment.");
+  }
+  return url.origin;
+}
+
+export async function readPersistedMeshHubUrl(statePath) {
+  try {
+    const state = JSON.parse(await readFile(statePath, "utf8"));
+    return state.hubUrl ? normalizeMeshHubUrl(state.hubUrl) : null;
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw new Error(`État de l’agent Mesh illisible : ${error.message}`);
+  }
+}
+
+function createAgentState(alias, hubUrl) {
   const identity = generateNodeIdentity();
   return {
     version: AGENT_STATE_VERSION,
     alias,
+    hubUrl,
     nodeId: null,
     sequence: 0,
     projectSalt: createPrivacySalt(),
@@ -41,7 +65,6 @@ export class MeshAgent {
     alias,
     statePath,
     enrollmentCode = null,
-    sitesBypassToken = null,
     projectMode = "hash",
     includeTitles = false,
     batchSize = DEFAULT_BATCH_SIZE,
@@ -49,12 +72,11 @@ export class MeshAgent {
     logger = console,
     hostnameImpl = hostname,
   }) {
-    if (!hubUrl) throw new Error("MESH_HUB_URL est requis pour activer l’agent Mesh.");
-    this.hubUrl = String(hubUrl).replace(/\/+$/, "");
+    if (!hubUrl) throw new Error("L’adresse du hub Mesh est requise pour activer l’agent.");
+    this.hubUrl = normalizeMeshHubUrl(hubUrl);
     this.alias = normalizeNodeAlias(alias || hostnameImpl());
     this.statePath = statePath;
     this.enrollmentCode = enrollmentCode;
-    this.sitesBypassToken = sitesBypassToken || null;
     this.projectMode = projectMode;
     this.includeTitles = includeTitles;
     this.batchSize = Math.max(1, Math.min(100, Number(batchSize) || DEFAULT_BATCH_SIZE));
@@ -66,9 +88,7 @@ export class MeshAgent {
   }
 
   requestHeaders() {
-    const headers = { "content-type": "application/json" };
-    if (this.sitesBypassToken) headers["OAI-Sites-Authorization"] = `Bearer ${this.sitesBypassToken}`;
-    return headers;
+    return { "content-type": "application/json" };
   }
 
   async load() {
@@ -76,10 +96,16 @@ export class MeshAgent {
       const state = JSON.parse(await readFile(this.statePath, "utf8"));
       if (state.version !== AGENT_STATE_VERSION || !state.privateKey || !state.publicKey || !state.projectSalt) throw new Error("État incompatible");
       state.alias = this.alias;
+      if (state.hubUrl !== this.hubUrl) {
+        state.hubUrl = this.hubUrl;
+        this.state = state;
+        await this.persist();
+        return this.state;
+      }
       this.state = state;
     } catch (error) {
       if (error.code !== "ENOENT") throw new Error(`État de l’agent Mesh illisible : ${error.message}`);
-      this.state = createAgentState(this.alias);
+      this.state = createAgentState(this.alias, this.hubUrl);
       await this.persist();
     }
     return this.state;

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { analyzeCodexUsage, usageFingerprint } from "./analyzer.mjs";
 import { createDashboardCapabilities } from "./dashboard-contract.mjs";
-import { MeshAgent } from "./mesh-agent.mjs";
+import { MeshAgent, readPersistedMeshHubUrl } from "./mesh-agent.mjs";
 import { serializePublicUsage, toPublicUsage } from "./public-usage.mjs";
 import { UsageStore } from "./usage-store.mjs";
 
@@ -85,14 +85,15 @@ export async function createUsageCollector({
     ? null
     : env.SNAPSHOT_PATH || path.join(root, ".cache", "usage-snapshot.json");
 
+  const meshAgentStatePath = env.MESH_AGENT_STATE_PATH || path.join(root, ".cache", "mesh-agent.json");
+  const meshHubUrl = env.MESH_HUB_URL || await readPersistedMeshHubUrl(meshAgentStatePath);
   let meshAgent = null;
-  if (env.MESH_HUB_URL) {
+  if (meshHubUrl) {
     meshAgent = new MeshAgent({
-      hubUrl: env.MESH_HUB_URL,
+      hubUrl: meshHubUrl,
       alias: env.MESH_NODE_ALIAS,
-      statePath: env.MESH_AGENT_STATE_PATH || path.join(root, ".cache", "mesh-agent.json"),
+      statePath: meshAgentStatePath,
       enrollmentCode: env.MESH_ENROLLMENT_CODE || null,
-      sitesBypassToken: env.MESH_SITES_BYPASS_TOKEN || null,
       projectMode: env.MESH_PROJECT_MODE || "hash",
       includeTitles: env.MESH_INCLUDE_TITLES === "1" || env.MESH_INCLUDE_TITLES === "true",
       batchSize: env.MESH_BATCH_SIZE,

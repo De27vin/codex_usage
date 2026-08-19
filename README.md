@@ -8,7 +8,7 @@ Local Usage turns the Codex session metadata stored on your computer into a fast
 
 [**Stable release 1.2.0**](https://github.com/capisoft-lib/codex_usage/releases/tag/v1.2.0) · [Docker image 1.2.0](https://hub.docker.com/r/capitaine/codex-usage-dashboard) · [AGPL-3.0-or-later](LICENSE) · [Changelog](CHANGELOG.md) · [CI status](https://github.com/capisoft-lib/codex_usage/actions/workflows/ci.yml)
 
-Setup guides: [deploy the central dashboard with OpenAI Sites](docs/sites-deployment.md) · [install a reporting agent](docs/reporting-agent.md)
+Setup guides: [deploy the central dashboard with OpenAI Sites](docs/sites-deployment.md) · [deploy the public Mesh ingress](docs/mesh-ingress.md) · [install a reporting agent](docs/reporting-agent.md)
 
 ## What the application shows
 
@@ -221,20 +221,21 @@ An agent can be added to any Windows, macOS, or Linux computer that runs Codex a
 
 For a complete installation procedure, including Node.js and Docker operation, verification, updates, revocation, and recovery, read [Install a reporting agent](docs/reporting-agent.md).
 
-### 1. Create a one-time enrollment code
+### 1. Create an association command
 
-For a Sites hub, sign in to the deployed Site, open `/admin`, and select **Add a machine**. The generated code expires after ten minutes and can be used once.
+For a Sites hub, sign in with ChatGPT, open `/admin`, and select **Add a machine**. The page generates a ready-to-copy command containing the public ingress address and a code that expires after ten minutes and can be used once.
 
 For a self-hosted hub, create the same code through its administration endpoint as described below.
 
-### 2. Configure the machine
+### 2. Associate and start the machine
 
-Set at least:
+From the checked-out project folder on the new machine, run the command copied from `/admin`:
 
-```text
-MESH_HUB_URL=https://your-site.example
-MESH_ENROLLMENT_CODE=AAAA-BBBB-CCCC-DDDD
+```bash
+npm run start:agent -- --hub-url "https://your-mesh-ingress.example" --associate "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-0000-1111"
 ```
+
+The first successful synchronization persists the non-secret ingress address and the machine's private Ed25519 identity in `.cache/mesh-agent.json`. Later starts need only `npm run start:agent`; neither the one-time code nor any shared infrastructure token remains configured.
 
 Optional but recommended settings are:
 
@@ -245,7 +246,7 @@ MESH_PROJECT_MODE=hash
 MESH_INCLUDE_TITLES=false
 ```
 
-A private Site may also require `MESH_SITES_BYPASS_TOKEN`. Supply it as an environment secret; never write it into source code or commit it.
+For a private Sites hub, `MESH_HUB_URL` is the dedicated public Mesh ingress, not the private Site. Reporting machines never receive a Site bypass credential.
 
 ### 3. Choose GUI or headless operation
 
@@ -255,7 +256,7 @@ To run the local GUI and the reporting agent together:
 npm start
 ```
 
-Because `MESH_HUB_URL` is present, the GUI exposes both **Local** and **Centralized** sources. The browser requests centralized data through its local server; the enrolled agent signs that read request and the hub returns only the current owner's aggregate.
+Because the persistent association is present, the GUI exposes both **Local** and **Centralized** sources. The browser requests centralized data through its local server; the enrolled agent signs that read request and the hub returns only the current owner's aggregate.
 
 To report without serving a GUI:
 
@@ -303,7 +304,7 @@ This repository's Sites application lives in `sites-hub/`. It provides:
 - an `/admin` page for one-time enrollment codes, machine status, and revocation;
 - D1 storage for owners, enrollments, machines, sanitized snapshots, and quota history;
 - signed endpoints for enrollment, ingestion, and owner-scoped reads;
-- optional private-Site machine access through `OAI-Sites-Authorization`.
+- a separate stateless public ingress that keeps private-Site authorization server-side.
 
 The local GUI and the Site are separate deployments, but both use the bundle generated from root `public/`. `npm run build:ui` writes a deterministic bundle and SHA-256 manifest under `dist/dashboard/`; a Sites build regenerates and copies that exact bundle. Do not edit generated dashboard copies.
 
@@ -327,7 +328,8 @@ In the Sites settings:
 1. bind the D1 database declared as `DB` and apply the checked-in migrations;
 2. configure any secret or environment value in Sites settings, not in `.openai/hosting.json`;
 3. choose the narrowest appropriate access policy—selected users/groups, workspace, or public access as available;
-4. for a private Site receiving non-interactive agents, create the required machine bypass token and expose it only as `MESH_SITES_BYPASS_TOKEN` on each agent.
+4. deploy `mesh-ingress/` and store the Site bypass value only as its encrypted `SITES_UPSTREAM_AUTH_TOKEN` server-side secret;
+5. configure machines with the public ingress URL and a one-time enrollment code only.
 
 After deployment, sign in to `/admin`, create a one-time code, enroll each machine, and use `/dashboard/index.html` for the aggregate. Keep Sites and reporting agents on compatible Mesh protocol versions when deploying schema or protocol changes.
 
@@ -353,7 +355,7 @@ Configure each machine with:
 
 ```text
 MESH_HUB_URL=http://private-hub-address:4318
-MESH_ENROLLMENT_CODE=AAAA-BBBB-CCCC-DDDD
+MESH_ENROLLMENT_CODE=AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-0000-1111
 ```
 
 If the hub is reachable outside a trusted private network, place it behind HTTPS and protect its browser interface. Mesh requests remain protected by signatures, timestamps, monotonic sequence numbers, and node revocation.
@@ -402,7 +404,6 @@ The browser maintains separate Local and Centralized caches. The local view is n
 | `DASHBOARD_ASSETS_PATH` | `dist/dashboard` | Generated UI bundle served locally. |
 | `DASHBOARD_MODE` | `local` | `local` analyzes this machine; `hub` accepts and aggregates Mesh snapshots. |
 | `MESH_HUB_URL` | empty | Enables the outbound reporting agent and Centralized source. |
-| `MESH_SITES_BYPASS_TOKEN` | empty | Secret used by a machine to cross a private Site's SIWC barrier. |
 | `MESH_NODE_ALIAS` | system machine name | Optional display-name override. |
 | `MESH_ENROLLMENT_CODE` | empty | One-time code required only for initial enrollment. |
 | `MESH_AGENT_STATE_PATH` | `.cache/mesh-agent.json` | Persistent enrollment identity and private key. |
@@ -451,7 +452,7 @@ The displayed dollar amount is theoretical API-equivalent cost, not a bill or th
 - In local-only mode, no Codex usage data leaves the machine.
 - In Mesh mode, only the documented minimized snapshot is sent to the explicitly configured hub.
 
-Do not change `HOST` to `0.0.0.0` unless you intend to expose the local dashboard and its metadata to other reachable devices. Protect `MESH_AGENT_STATE_PATH`, administrator tokens, and private-Site bypass tokens as secrets.
+Do not change `HOST` to `0.0.0.0` unless you intend to expose the local dashboard and its metadata to other reachable devices. Protect `MESH_AGENT_STATE_PATH` and administrator tokens as secrets. A reporting machine must never hold the private Site's bypass credential.
 
 ## Data sources and limitations
 
@@ -503,6 +504,7 @@ Copyright © 2026 capisoft-lib and contributors.
 public/                  Editable source for the shared browser interface
 dist/dashboard/          Generated UI bundle for local, Docker, and Sites builds
 docs/                    Sites deployment and reporting-agent guides
+mesh-ingress/             Stateless public gateway for signed machine traffic
 scripts/                 Deterministic UI build and synchronization tools
 src/analyzer.mjs         Read-only Codex session parser
 src/usage-collector.mjs  Reusable local collector and optional Mesh sender
@@ -525,9 +527,9 @@ Confirm that `CODEX_HOME` contains `sessions` or `archived_sessions`, then resta
 
 The local server only advertises Centralized mode after `MESH_HUB_URL` is configured and the machine has valid persistent enrollment state. Provide a fresh one-time code for initial enrollment, then keep the state file and remove the code.
 
-### A private Site rejects the agent
+### The public Mesh ingress rejects the agent
 
-Set the private Site's machine bypass token as `MESH_SITES_BYPASS_TOKEN`. Keep the Mesh enrollment code and signed protocol enabled; the bypass token only crosses the Site access barrier.
+Confirm that `MESH_HUB_URL` is the ingress origin and that `/healthz` returns HTTP 200. Do not give the Site bypass token to the machine. Follow the [Mesh ingress guide](docs/mesh-ingress.md) to verify server-side configuration.
 
 ### A model uses the reference price
 
