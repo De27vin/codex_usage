@@ -65,6 +65,35 @@ export function resolveWeeklyRange(quota, now = new Date()) {
   };
 }
 
+export function theoreticalWeeklyQuotaPeriod(quota, now = new Date()) {
+  if (!quota || typeof quota !== "object") return null;
+  const nowTime = now instanceof Date ? now.getTime() : Date.parse(now);
+  const observedEnd = Date.parse(quota.endsAt || quota.resetsAt);
+  if (!Number.isFinite(nowTime) || !Number.isFinite(observedEnd) || nowTime < observedEnd) return null;
+
+  const windowMinutes = weeklyWindowMinutes(quota);
+  const windowMs = windowMinutes * 60_000;
+  const periodsAhead = Math.floor((nowTime - observedEnd) / windowMs) + 1;
+  const startTime = observedEnd + (periodsAhead - 1) * windowMs;
+  const endTime = startTime + windowMs;
+  return {
+    theoretical: true,
+    startsAt: new Date(startTime).toISOString(),
+    endsAt: new Date(endTime).toISOString(),
+    resetsAt: new Date(endTime).toISOString(),
+    windowMinutes,
+    usedPercent: null,
+    remainingPercent: null,
+    peakUsedPercent: null,
+    resetsAvailable: null,
+    observedAt: null,
+    firstObservedAt: null,
+    peakObservedAt: null,
+    planType: null,
+    planTypes: [],
+  };
+}
+
 export function quotaCountdownParts(resetAt, now = new Date()) {
   const resetTime = resetAt instanceof Date ? resetAt.getTime() : Date.parse(resetAt);
   const nowTime = now instanceof Date ? now.getTime() : Date.parse(now);

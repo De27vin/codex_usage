@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultCustomRange, latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, timestampInRange, toDateTimeLocalValue } from "../public/date-range.js";
+import { defaultCustomRange, latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, theoreticalWeeklyQuotaPeriod, timestampInRange, toDateTimeLocalValue } from "../public/date-range.js";
 
 test("stores datetime-local values without converting their local wall time", () => {
   const date = new Date(2026, 7, 13, 14, 5);
@@ -43,6 +43,42 @@ test("a stale weekly reset rolls forward into the current 7-day cycle", () => {
   assert.equal(range.resetsAt.toISOString(), "2026-08-21T12:00:00.000Z");
   assert.equal(timestampInRange("2026-08-14T14:00:00.000Z", range), true);
   assert.equal(timestampInRange("2026-08-14T11:00:00.000Z", range), false);
+});
+
+test("an expired observed quota creates an unobserved theoretical current week", () => {
+  const theoretical = theoreticalWeeklyQuotaPeriod({
+    startsAt: "2026-08-13T03:29:39.000Z",
+    endsAt: "2026-08-20T03:29:39.000Z",
+    resetsAt: "2026-08-20T03:29:39.000Z",
+    windowMinutes: 10080,
+    usedPercent: 74,
+    remainingPercent: 26,
+    planType: "pro",
+  }, "2026-08-20T05:07:00.000Z");
+
+  assert.equal(theoretical.startsAt, "2026-08-20T03:29:39.000Z");
+  assert.equal(theoretical.resetsAt, "2026-08-27T03:29:39.000Z");
+  assert.equal(theoretical.usedPercent, null);
+  assert.equal(theoretical.remainingPercent, null);
+  assert.equal(theoretical.planType, null);
+  assert.equal(theoretical.theoretical, true);
+});
+
+test("theoretical rollover skips fully elapsed unobserved weeks", () => {
+  const theoretical = theoreticalWeeklyQuotaPeriod({
+    resetsAt: "2026-08-06T12:00:00.000Z",
+    windowMinutes: 10080,
+  }, "2026-08-20T12:00:00.000Z");
+
+  assert.equal(theoretical.startsAt, "2026-08-20T12:00:00.000Z");
+  assert.equal(theoretical.resetsAt, "2026-08-27T12:00:00.000Z");
+});
+
+test("an observed quota that has not ended does not create a theoretical week", () => {
+  assert.equal(theoreticalWeeklyQuotaPeriod({
+    resetsAt: "2026-08-20T12:00:00.000Z",
+    windowMinutes: 10080,
+  }, "2026-08-20T11:59:59.999Z"), null);
 });
 
 test("without a reset date, weekly range is the last 7 days from now", () => {
