@@ -278,13 +278,15 @@ Run it with the same three read-only Codex mounts, the `/app-cache` volume, and 
 
 You do not install this Site *inside* Codex. Open this repository in the desktop app and give the deployment request directly to Codex in a conversation where Sites is available. Mentioning `@Sites` starts that workflow explicitly. ChatGPT on the web can then manage the existing Site; a web conversation can update source only when that source is available to it. The detailed procedure is in [Deploy the central dashboard with OpenAI Sites](docs/sites-deployment.md).
 
-For this existing project, give Codex this request first:
+For a first deployment or an update, give Codex this request first:
 
 ```text
-@Sites Prepare the existing Sites application in sites-hub/. Reuse the project
-linked by sites-hub/.openai/hosting.json; do not create a new Site. Check
-compatibility, run the relevant tests and build, and save a new version without
-deploying it. Show me the result before changing access, secrets, or production.
+@Sites Prepare the Sites application in sites-hub/. If the ignored
+sites-hub/.openai/hosting.json exists, reuse only that linked Site. Otherwise,
+create a new private Site in my account with access limited to me. Never commit
+the project ID or production URL. Run the relevant tests and build, then save a
+new version without deploying it. Show me the result before changing access,
+secrets, or production.
 ```
 
 After reviewing the saved version, ask:
@@ -306,6 +308,12 @@ This repository's Sites application lives in `sites-hub/`. It provides:
 - signed endpoints for enrollment, ingestion, and owner-scoped reads;
 - a separate stateless public ingress that keeps private-Site authorization server-side.
 
+The repository contains no production project ID or private Site URL. Every
+user creates their own private Site, D1 database, ingress configuration, and
+server-side upstream secret. Do not share deployment files between users. This
+keeps deployments as separate data silos, while authenticated Mesh reads are
+also scoped to the owning Site user.
+
 The local GUI and the Site are separate deployments, but both use the bundle generated from root `public/`. `npm run build:ui` writes a deterministic bundle and SHA-256 manifest under `dist/dashboard/`; a Sites build regenerates and copies that exact bundle. Do not edit generated dashboard copies.
 
 ### Prepare and verify the Site
@@ -317,7 +325,11 @@ npm test
 npm run lint
 ```
 
-Run `npm run db:generate` only after changing the D1 schema, then review the generated migration before deployment. `sites-hub/.openai/hosting.json` links this checkout to the Sites project and declares the `DB` D1 binding; it must never contain secrets.
+Run `npm run db:generate` only after changing the D1 schema, then review the
+generated migration before deployment. The committed
+`sites-hub/.openai/hosting.example.json` declares the `DB` binding shape. The
+ignored `hosting.json` links only the local checkout to that user's private Site
+and must never contain secrets.
 
 ### Publish with Sites
 
@@ -327,7 +339,7 @@ In the Sites settings:
 
 1. bind the D1 database declared as `DB` and apply the checked-in migrations;
 2. configure any secret or environment value in Sites settings, not in `.openai/hosting.json`;
-3. choose the narrowest appropriate access policy—selected users/groups, workspace, or public access as available;
+3. keep access private and limited to the deploying user's account unless other trusted users are deliberately authorized;
 4. deploy `mesh-ingress/` and store the Site bypass value only as its encrypted `SITES_UPSTREAM_AUTH_TOKEN` server-side secret;
 5. configure machines with the public ingress URL and a one-time enrollment code only.
 

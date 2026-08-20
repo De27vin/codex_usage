@@ -36,16 +36,33 @@ npm run check
 
 For local Wrangler testing, copy `.dev.vars.example` to the ignored `.dev.vars` file and replace the placeholder. Never use a production secret in an untrusted development environment.
 
+The committed `wrangler.example.jsonc` is intentionally generic. The real
+`wrangler.jsonc` is ignored because its Worker name, private Site origin, and
+rate-limit namespace IDs belong to one deployment.
+
 ## Deploy
 
-Authenticate Wrangler to the intended Cloudflare account, then from `mesh-ingress/`:
+Authenticate Wrangler to the intended Cloudflare account, then from
+`mesh-ingress/` copy the template to the ignored deployment file:
 
 ```bash
-npx wrangler secret put SITES_UPSTREAM_AUTH_TOKEN
+cp wrangler.example.jsonc wrangler.jsonc
+```
+
+On PowerShell, use `Copy-Item wrangler.example.jsonc wrangler.jsonc`.
+
+Before deploying, replace the Worker name and `MESH_UPSTREAM_ORIGIN` with this
+user's own Worker name and exact private Site origin. Keep the two
+`namespace_id` values distinct within that Cloudflare account. Then run:
+
+```bash
+npx wrangler secret put SITES_UPSTREAM_AUTH_TOKEN --config wrangler.jsonc
 npm run deploy
 ```
 
-Enter the private Site bypass value only at Wrangler's secret prompt. The checked-in `MESH_UPSTREAM_ORIGIN` is non-secret and must remain the exact private Site origin.
+Enter the private Site bypass value only at Wrangler's secret prompt. Never
+commit the generated `wrangler.jsonc` or copy another user's origin, Worker
+configuration, or bypass value.
 
 Record the resulting HTTPS Worker URL and verify:
 

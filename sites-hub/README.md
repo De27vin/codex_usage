@@ -50,7 +50,9 @@ contract.
 ## Included Shape
 
 - edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
+- `.openai/hosting.example.json` declares the public D1 and R2 binding shape
+- ignored `.openai/hosting.json` links only your checkout to your private Site
+- local builds create and remove an example-based temporary `hosting.json` when no private linkage exists
 - `vite.config.ts` simulates declared bindings for local development
 - `db/schema.ts` defines enrollments, machines and sanitized session snapshots
 - `drizzle.config.ts` supports local migration generation when needed

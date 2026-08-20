@@ -8,9 +8,9 @@
   },
   "scripts": {
     "test": "node --test tests/worker.test.mjs",
-    "build": "wrangler deploy --dry-run --outdir dist",
+    "build": "wrangler deploy --dry-run --config wrangler.example.jsonc --outdir dist",
     "check": "npm test && npm run build",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy --config wrangler.jsonc"
   },
   "devDependencies": {
     "wrangler": "4.123.0"

@@ -15,6 +15,10 @@ sites-hub/public/dashboard/
 .codex/
 auth.json
 
+# Per-deployment Sites and Cloudflare linkage. Commit only the example files.
+sites-hub/.openai/hosting.json
+mesh-ingress/wrangler.jsonc
+
 # Never publish local Codex data or generated usage snapshots.
 sessions/
 archived_sessions/

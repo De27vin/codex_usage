@@ -10,13 +10,25 @@ Official reference: [OpenAI Sites documentation](https://learn.chatgpt.com/docs/
 
 The repository contains a compatible Sites application in `sites-hub/`:
 
-- `sites-hub/.openai/hosting.json` links the checkout to the existing hosted project and declares its logical D1 binding;
+- `sites-hub/.openai/hosting.example.json` declares the public logical D1 binding shape;
+- ignored `sites-hub/.openai/hosting.json` links one local checkout to one Site without publishing its project ID;
 - `sites-hub/app/` contains the hosted application;
 - `sites-hub/db/` and `sites-hub/drizzle/` contain the checked-in database schema and migrations;
 - the root `public/` directory remains the editable source of the shared dashboard UI;
 - a Sites build regenerates and copies the same dashboard bundle used by the local and Docker deployments.
 
-Do not remove or replace the existing `project_id`, and do not create another Site for a routine update.
+The repository deliberately contains no Sites project ID or production URL. On
+first deployment, each user must create their own private Site. On later
+updates, reuse only the Site linked by their ignored local `hosting.json`.
+
+## Per-user privacy boundary
+
+Keep the Site access policy private and limited to the deploying user's own
+account unless they deliberately add another trusted account. Do not reuse
+another user's project ID, Site URL, D1 database, ingress, or upstream token.
+Separate Sites and D1 bindings make each deployment an independent data silo;
+the application additionally scopes Mesh machines and reads to the authenticated
+Site owner.
 
 ## Prerequisites
 
@@ -25,7 +37,7 @@ Before publishing, confirm that:
 1. the repository is cloned and the intended branch or commit is checked out;
 2. Sites is available for the current account and workspace in the desktop app or ChatGPT on the web;
 3. Node.js 22.13 or newer is available if local verification is required;
-4. the person deploying is allowed to manage the existing Site;
+4. the person deploying owns the private Site or is explicitly allowed to manage it;
 5. secret values are available through an approved secret manager or Sites settings, never through committed files or chat attachments.
 
 ## Recommended deployment workflow
@@ -35,13 +47,17 @@ Before publishing, confirm that:
 Open the repository as the active local project in the desktop app, then give Codex this request directly:
 
 ```text
-@Sites Prepare the existing Sites application in sites-hub/. Reuse the project
-linked by sites-hub/.openai/hosting.json; do not create a new Site. Check
-compatibility, run the relevant tests and build, and save a new version without
-deploying it. Show me the result before changing access, secrets, or production.
+@Sites Prepare the Sites application in sites-hub/. If the ignored
+sites-hub/.openai/hosting.json exists, reuse only that linked Site. Otherwise,
+create a new private Site in my account with access limited to me. Never commit
+the project ID or production URL. Run the relevant tests and build, then save a
+new version without deploying it. Show me the result before changing access,
+secrets, or production.
 ```
 
-This request matters: mentioning `@Sites` starts the Sites workflow explicitly, while the path and reuse instruction prevent an accidental second project.
+This request matters: mentioning `@Sites` starts the Sites workflow explicitly,
+while the conditional reuse instruction keeps new users isolated and prevents
+existing users from accidentally creating a second project.
 
 ### 2. Review the saved version
 
@@ -79,7 +95,8 @@ After deployment:
 
 ## First deployment or hosted-setting changes
 
-The existing Site uses a D1 binding named `DB`. In the Site settings:
+Each user's Site uses its own D1 database through a binding named `DB`. In that
+Site's settings:
 
 1. keep the D1 database bound as `DB`;
 2. apply only reviewed, checked-in migrations;
@@ -88,7 +105,9 @@ The existing Site uses a D1 binding named `DB`. In the Site settings:
 5. deploy the dedicated [public Mesh ingress](mesh-ingress.md), storing the Site bypass credential only as its encrypted server-side secret;
 6. let `/admin` generate the ready-to-copy association command; do not manually provision a credential on reporting machines.
 
-Never store a secret in `.openai/hosting.json`. Do not paste secret values into prompts, documentation, screenshots, or committed `.env` files.
+Keep `.openai/hosting.json` local and ignored: it may contain the deployment's
+project ID but must never contain a secret. Do not paste secret values into
+prompts, documentation, screenshots, or committed `.env` files.
 
 ## Local verification for maintainers
 
@@ -104,15 +123,20 @@ Run `npm run db:generate` only after a deliberate D1 schema change. Inspect the 
 
 ## Updating an existing deployment
 
-For later releases, use the same two-step workflow: check out the intended commit, ask Codex to save a new version without deploying, review it, then authorize deployment. The project linkage in `.openai/hosting.json` allows a new conversation to find the existing Site.
+For later releases, use the same two-step workflow: check out the intended
+commit, ask Codex to save a new version without deploying, review it, then
+authorize deployment. The ignored project linkage in `.openai/hosting.json`
+allows a new conversation on that machine to find the user's existing Site.
 
 Changing a secret or hosted environment value does not update a running deployment by itself. Ask Codex to redeploy the approved saved version after the setting is changed.
 
 ## Common mistakes
 
-- **Creating a duplicate Site:** explicitly say to reuse `sites-hub/.openai/hosting.json`.
+- **Sharing a deployment:** never copy another user's `hosting.json`, Site URL, D1 binding, ingress configuration, or upstream token.
+- **Creating a duplicate Site:** when local `hosting.json` exists, explicitly say to reuse it.
 - **Publishing while only asking for a preview:** explicitly ask to save without deploying.
 - **Editing generated dashboard files:** edit root `public/`; the Sites build copies the generated bundle.
+- **Committing deployment linkage:** commit only `hosting.example.json`; keep `hosting.json` ignored even though its project ID is not a credential.
 - **Committing a secret:** keep hosted secrets in Sites settings and local secrets in ignored environment files.
 - **Changing access unintentionally:** tell Codex to preserve the current access policy unless a change is separately approved.
 - **Expecting the CLI to manage Sites:** use ChatGPT web or desktop for Sites operations; use the CLI or IDE only to edit and test source code.
