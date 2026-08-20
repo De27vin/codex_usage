@@ -22,15 +22,15 @@ jobs:
         run: npm ci --prefix mesh-ingress
       - name: Validate Mesh ingress
         run: npm run check --prefix mesh-ingress
-      - name: Audit Mesh ingress production dependencies
-        run: npm audit --omit=dev --audit-level=high --prefix mesh-ingress
+      - name: Audit all Mesh ingress dependencies
+        run: npm audit --audit-level=low --prefix mesh-ingress
       - name: Install Sites dependencies
         run: npm ci --prefix sites-hub
       - name: Validate Sites build and tests
         run: npm test --prefix sites-hub
       - name: Lint Sites
         run: npm run lint --prefix sites-hub
-      - name: Audit deployed Sites dependencies
-        run: npm audit --omit=dev --audit-level=high --prefix sites-hub
+      - name: Audit all Sites dependencies
+        run: npm audit --audit-level=low --prefix sites-hub
       - name: Build container
         run: docker build --tag codex-usage-dashboard:ci .
