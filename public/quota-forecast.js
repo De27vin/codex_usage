@@ -1,6 +1,7 @@
 export const FORECAST_HOUR_MS = 60 * 60 * 1_000;
 export const DEFAULT_EMA_HALF_LIFE_HOURS = 24;
 export const DEFAULT_LOOKBACK_HOURS = 28 * 24;
+export const DEFAULT_CAPACITY_HALF_LIFE_PERIODS = 2;
 
 function finiteNonNegative(value) {
   const number = Number(value);
@@ -17,6 +18,14 @@ function normalizedSamples(samples, from, to) {
     .map((sample) => ({ time: validTime(sample?.timestamp), value: finiteNonNegative(sample?.value) }))
     .filter((sample) => sample.time !== null && sample.time >= from && sample.time <= to && sample.value > 0)
     .sort((left, right) => left.time - right.time);
+}
+
+function comparableQuota(period, planType, nodeId) {
+  const expectedPlan = String(planType || "").trim().toLowerCase();
+  const periodPlan = String(period?.planType || "").trim().toLowerCase();
+  if (expectedPlan && periodPlan && expectedPlan !== periodPlan) return false;
+  if (nodeId && period?.nodeId && nodeId !== period.nodeId) return false;
+  return true;
 }
 
 export function exponentialWeightedAverage(values, halfLifePeriods = DEFAULT_EMA_HALF_LIFE_HOURS) {
@@ -38,6 +47,27 @@ export function weeklyForecastTicks(rangeStart, rangeEnd) {
   const endTime = validTime(rangeEnd);
   if (startTime === null || endTime === null || endTime <= startTime) return [];
   return Array.from({ length: 8 }, (_, index) => startTime + index * (endTime - startTime) / 7);
+}
+
+export function estimateQuotaCapacityCredits({
+  samples = [],
+  quotaPeriods = [],
+  planType = null,
+  nodeId = null,
+  halfLifePeriods = DEFAULT_CAPACITY_HALF_LIFE_PERIODS,
+} = {}) {
+  const estimates = (quotaPeriods || []).filter((period) => comparableQuota(period, planType, nodeId)).map((period) => {
+    const startTime = validTime(period?.startsAt);
+    const observedTime = validTime(period?.peakObservedAt || period?.observedAt);
+    const usedPercent = Number(period?.peakUsedPercent ?? period?.usedPercent);
+    if (startTime === null || observedTime === null || observedTime <= startTime || !Number.isFinite(usedPercent) || usedPercent <= 0) return null;
+    const consumedCredits = normalizedSamples(samples, startTime, observedTime).reduce((sum, sample) => sum + sample.value, 0);
+    if (consumedCredits <= 0) return null;
+    return { observedTime, capacityCredits: consumedCredits * 100 / usedPercent };
+  }).filter(Boolean).sort((left, right) => left.observedTime - right.observedTime);
+
+  if (!estimates.length) return null;
+  return exponentialWeightedAverage(estimates.map((estimate) => estimate.capacityCredits), halfLifePeriods);
 }
 
 function rollingHourlyValues(samples, anchorTime, lookbackHours) {
@@ -67,7 +97,7 @@ function cumulativePoints(samples, startTime, anchorTime, usedPercent, currentCr
     }
     points.push({
       timestamp: new Date(boundary).toISOString(),
-      percent: boundary === anchorTime ? usedPercent : cumulative / currentCredits * usedPercent,
+      percent: boundary === anchorTime ? usedPercent : currentCredits > 0 ? cumulative / currentCredits * usedPercent : 0,
     });
     if (boundary === anchorTime) break;
   }
@@ -97,24 +127,31 @@ export function buildQuotaForecast({
   project = true,
   halfLifeHours = DEFAULT_EMA_HALF_LIFE_HOURS,
   lookbackHours = DEFAULT_LOOKBACK_HOURS,
+  capacityCredits = null,
 } = {}) {
   const startTime = validTime(rangeStart);
   const endTime = validTime(rangeEnd);
   const observationTime = validTime(observedAt);
-  const safeUsedPercent = finiteNonNegative(usedPercent);
+  const hasUsedPercent = usedPercent !== null && usedPercent !== undefined && usedPercent !== "";
+  const parsedUsedPercent = Number(usedPercent);
+  const safeUsedPercent = finiteNonNegative(parsedUsedPercent);
   if (startTime === null || endTime === null || observationTime === null || endTime <= startTime) {
     return { status: "unavailable" };
   }
   const anchorTime = Math.min(endTime, observationTime);
-  if (anchorTime <= startTime || safeUsedPercent <= 0) return { status: "insufficient" };
+  if (anchorTime <= startTime || !hasUsedPercent || !Number.isFinite(parsedUsedPercent) || parsedUsedPercent < 0) return { status: "insufficient" };
 
   const currentSamples = normalizedSamples(samples, startTime, anchorTime);
   const currentCredits = currentSamples.reduce((sum, sample) => sum + sample.value, 0);
-  if (currentCredits <= 0) return { status: "insufficient" };
+  const historicalCapacityCredits = finiteNonNegative(capacityCredits);
+  const currentCapacityCredits = safeUsedPercent > 0 && currentCredits > 0 ? currentCredits * 100 / safeUsedPercent : 0;
+  const calibratedCapacityCredits = historicalCapacityCredits || currentCapacityCredits;
+  if (calibratedCapacityCredits <= 0) return { status: "insufficient" };
 
   const hourlyValues = rollingHourlyValues(samples, anchorTime, lookbackHours);
+  if (!hourlyValues.length) return { status: "insufficient" };
   const creditsPerHour = exponentialWeightedAverage(hourlyValues, halfLifeHours);
-  const quotaPercentPerCredit = safeUsedPercent / currentCredits;
+  const quotaPercentPerCredit = 100 / calibratedCapacityCredits;
   const percentPerHour = creditsPerHour * quotaPercentPerCredit;
   const remainingHours = Math.max(0, (endTime - anchorTime) / FORECAST_HOUR_MS);
   const shouldProject = project !== false && anchorTime < endTime;
@@ -127,6 +164,8 @@ export function buildQuotaForecast({
     observedAt: new Date(anchorTime).toISOString(),
     usedPercent: safeUsedPercent,
     currentCredits,
+    capacityCredits: calibratedCapacityCredits,
+    calibrationSource: historicalCapacityCredits > 0 ? "history" : "current",
     creditsPerHour,
     creditsPerDay: creditsPerHour * 24,
     expectedFinalPercent,

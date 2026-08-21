@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildQuotaForecast, exponentialWeightedAverage, FORECAST_HOUR_MS, weeklyForecastTicks } from "../public/quota-forecast.js";
+import { buildQuotaForecast, estimateQuotaCapacityCredits, exponentialWeightedAverage, FORECAST_HOUR_MS, weeklyForecastTicks } from "../public/quota-forecast.js";
 
 test("exponential weighting gives more influence to recent credit consumption", () => {
   const olderSpike = exponentialWeightedAverage([100, 0, 0, 0], 2);
@@ -52,6 +52,61 @@ test("the same consumed credits produce a higher forecast when they are recent",
   assert.ok(recent.expectedFinalPercent > older.expectedFinalPercent);
 });
 
+test("a new quota uses historical capacity and recent EMA consumption immediately", () => {
+  const rangeStart = Date.parse("2026-08-20T05:00:00.000Z");
+  const observedAt = rangeStart + FORECAST_HOUR_MS / 2;
+  const previousStart = rangeStart - 7 * 24 * FORECAST_HOUR_MS;
+  const previousObservedAt = rangeStart - FORECAST_HOUR_MS;
+  const samples = Array.from({ length: 50 }, (_, index) => ({
+    timestamp: new Date(previousObservedAt - (49 - index) * FORECAST_HOUR_MS).toISOString(),
+    value: 1,
+  }));
+  const capacityCredits = estimateQuotaCapacityCredits({
+    samples,
+    quotaPeriods: [{
+      startsAt: new Date(previousStart).toISOString(),
+      peakObservedAt: new Date(previousObservedAt).toISOString(),
+      peakUsedPercent: 50,
+      planType: "pro",
+    }],
+    planType: "pro",
+  });
+  const forecast = buildQuotaForecast({
+    samples,
+    rangeStart,
+    rangeEnd: rangeStart + 7 * 24 * FORECAST_HOUR_MS,
+    observedAt,
+    usedPercent: 0,
+    capacityCredits,
+  });
+
+  assert.equal(capacityCredits, 100);
+  assert.equal(forecast.status, "ready");
+  assert.equal(forecast.calibrationSource, "history");
+  assert.equal(forecast.currentCredits, 0);
+  assert.equal(forecast.actual.at(-1).percent, 0);
+  assert.ok(forecast.creditsPerHour > 0);
+  assert.ok(forecast.expectedFinalPercent > 0);
+});
+
+test("historical capacity ignores quota periods from another reported plan", () => {
+  const start = Date.parse("2026-08-01T00:00:00.000Z");
+  const samples = [
+    { timestamp: new Date(start + FORECAST_HOUR_MS).toISOString(), value: 20 },
+    { timestamp: new Date(start + 8 * 24 * FORECAST_HOUR_MS).toISOString(), value: 80 },
+  ];
+  const capacity = estimateQuotaCapacityCredits({
+    samples,
+    quotaPeriods: [
+      { startsAt: new Date(start).toISOString(), peakObservedAt: new Date(start + 2 * FORECAST_HOUR_MS).toISOString(), peakUsedPercent: 20, planType: "pro" },
+      { startsAt: new Date(start + 7 * 24 * FORECAST_HOUR_MS).toISOString(), peakObservedAt: new Date(start + 9 * 24 * FORECAST_HOUR_MS).toISOString(), peakUsedPercent: 20, planType: "plus" },
+    ],
+    planType: "pro",
+  });
+
+  assert.equal(capacity, 100);
+});
+
 test("a completed quota renders cumulative consumption through its effective end without projection", () => {
   const rangeStart = Date.parse("2026-08-12T17:23:48.000Z");
   const rangeEnd = Date.parse("2026-08-13T03:29:38.000Z");
@@ -82,6 +137,7 @@ test("forecast fails closed when quota calibration data is unavailable", () => {
     observedAt: "2026-08-14T12:00:00.000Z",
   };
   assert.equal(buildQuotaForecast({ ...common, usedPercent: null }).status, "insufficient");
+  assert.equal(buildQuotaForecast({ ...common, usedPercent: null, capacityCredits: 100, samples: [{ timestamp: common.observedAt, value: 1 }] }).status, "insufficient");
   assert.equal(buildQuotaForecast({ ...common, usedPercent: 20, samples: [] }).status, "insufficient");
   assert.equal(buildQuotaForecast({ ...common, usedPercent: 20, observedAt: "broken" }).status, "unavailable");
 });

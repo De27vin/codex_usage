@@ -43,6 +43,7 @@
           <small class="sidenav-quota-meta">
             <span data-quota-nav-remaining>—</span>
             <span data-quota-nav-reset></span>
+            <span data-quota-nav-countdown></span>
           </small>
         </span>
       </a>
@@ -144,9 +145,9 @@
 
       <section class="page" data-page="quota" hidden>
         <nav class="quota-history-nav" aria-label="Historique du quota" data-i18n-aria="quota.historyLabel">
-          <button id="quotaPrevious" class="quota-history-button" type="button" data-i18n-aria="quota.previous" aria-label="Période précédente">←</button>
+          <button id="quotaPrevious" class="quota-history-button" type="button" data-i18n-aria="quota.previous" aria-label="Période précédente"><span class="quota-history-icon is-previous" aria-hidden="true"></span></button>
           <label class="quota-history-select"><span data-i18n="quota.period">Période de quota</span><select id="quotaPeriodSelect"></select></label>
-          <button id="quotaNext" class="quota-history-button" type="button" data-i18n-aria="quota.next" aria-label="Période suivante">→</button>
+          <button id="quotaNext" class="quota-history-button" type="button" data-i18n-aria="quota.next" aria-label="Période suivante"><span class="quota-history-icon is-next" aria-hidden="true"></span></button>
         </nav>
         <article class="panel quota-panel" id="quotaHero"></article>
         <section class="kpi-grid quota-kpis" id="quotaKpis" aria-label="Indicateurs du quota"></section>
@@ -279,6 +280,7 @@
         <small class="sidenav-quota-meta">
           <span data-quota-nav-remaining>—</span>
           <span data-quota-nav-reset></span>
+          <span data-quota-nav-countdown></span>
         </small>
       </span>
     </a>

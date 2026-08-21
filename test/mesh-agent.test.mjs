@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { MeshAgent } from "../src/mesh-agent.mjs";
+import { MeshAgent, readPersistedMeshHubUrl } from "../src/mesh-agent.mjs";
 import { MeshHubStore } from "../src/mesh-hub-store.mjs";
 
 function usageData() {
@@ -40,7 +40,7 @@ test("agent enrolls, signs minimized snapshots, and only resends changes", async
       return Response.json({ error: error.message, code: error.code }, { status: error.status || 500 });
     }
   };
-  const agent = new MeshAgent({ hubUrl: "https://mesh.example", alias: "PC Bureau", statePath: path.join(directory, "agent.json"), enrollmentCode: enrollment.code, sitesBypassToken: "private-sites-token", fetchImpl, logger: { log() {} } });
+  const agent = new MeshAgent({ hubUrl: "https://mesh.example", alias: "PC Bureau", statePath: path.join(directory, "agent.json"), enrollmentCode: enrollment.code, fetchImpl, logger: { log() {} } });
   const data = usageData();
   const first = await agent.sync(data);
   const second = await agent.sync(data);
@@ -49,7 +49,8 @@ test("agent enrolls, signs minimized snapshots, and only resends changes", async
   const centralized = await agent.centralizedUsage();
   assert.equal(centralized.sessions[0].nodeAlias, "PC Bureau");
   assert.equal(requests.filter((request) => request.url.endsWith("/enroll")).length, 1);
-  assert.ok(requests.every((request) => request.headers["OAI-Sites-Authorization"] === "Bearer private-sites-token"));
+  assert.ok(requests.every((request) => request.headers["content-type"] === "application/json"));
+  assert.ok(requests.every((request) => !Object.keys(request.headers).some((name) => name.toLowerCase() === "oai-sites-authorization")));
   const aggregated = store.aggregate();
   assert.equal(aggregated.sessions.length, 1);
   assert.match(aggregated.sessions[0].title, /^Conversation /);
@@ -60,6 +61,8 @@ test("agent enrolls, signs minimized snapshots, and only resends changes", async
   const state = JSON.parse(await readFile(path.join(directory, "agent.json"), "utf8"));
   assert.equal(state.sequence, 3);
   assert.equal(state.nodeId, aggregated.nodes[0].id);
+  assert.equal(state.hubUrl, "https://mesh.example");
+  assert.equal(await readPersistedMeshHubUrl(path.join(directory, "agent.json")), "https://mesh.example");
 });
 
 test("agent uses the operating-system hostname when no alias override is configured", async () => {

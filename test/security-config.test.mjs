@@ -27,6 +27,25 @@ test("credential files are excluded from source control and Docker context", asy
   assert.match(dockerignore, /^auth\.json$/m);
 });
 
+test("reporting machines never receive a shared private-Site credential", async () => {
+  const clientFiles = await Promise.all([
+    "../src/mesh-agent.mjs",
+    "../src/usage-collector.mjs",
+    "../compose.yaml",
+    "../.env.example",
+    "../docs/reporting-agent.md",
+  ].map((file) => readFile(new URL(file, import.meta.url), "utf8")));
+  const clientSource = clientFiles.join("\n");
+  assert.doesNotMatch(clientSource, /MESH_SITES_BYPASS_TOKEN/);
+  assert.doesNotMatch(clientSource, /OAI-Sites-Authorization/i);
+  assert.match(clientSource, /one-time enrollment code|code expires after ten minutes/i);
+
+  const ingress = await readFile(new URL("../mesh-ingress/src/worker.mjs", import.meta.url), "utf8");
+  assert.match(ingress, /SITES_UPSTREAM_AUTH_TOKEN/);
+  assert.match(ingress, /oai-sites-authorization/);
+  assert.doesNotMatch(ingress, /logger\.(?:log|info|warn|error)\([^\n]*(?:body|headers|token)/i);
+});
+
 test("the strict CSP is kept without runtime inline styles", async () => {
   const [server, app] = await Promise.all([
     readFile(new URL("../server.mjs", import.meta.url), "utf8"),
@@ -46,7 +65,7 @@ test("dynamic KPI metadata is escaped before HTML insertion", async () => {
 
 test("the published image instructions keep Codex mounts scoped and read-only", async () => {
   const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
-  assert.match(readme, /capitaine\/codex-usage-dashboard:1\.2\.0/);
+  assert.match(readme, /capitaine\/codex-usage-dashboard:1\.3\.0/);
   assert.match(readme, /ghcr\.io\/capisoft-lib\/codex-usage-dashboard:1\.0\.2/);
   assert.match(readme, /target=\/codex-data\/sessions,readonly/);
   assert.match(readme, /target=\/codex-data\/archived_sessions,readonly/);

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.3.0 — 2026-08-20
+
+- Replaced quota-history arrow glyphs with font-independent CSS chevrons and improved disabled-state visibility on mobile screens.
+- Replaced per-machine private-Site bypass credentials with a rate-limited public Mesh ingress; machines now use only one-time enrollment and their own revocable Ed25519 identity.
+- Kept Sites and Cloudflare deployment linkage in ignored local files and added neutral templates so every user provisions an isolated private Site, D1 database, and ingress.
+- Updated the Sites development toolchain to resolve all npm audit findings and made CI audit complete dependency trees.
+
 ## 1.2.0 — 2026-08-15
 
 - Added a seven-day quota forecast with daily boundaries, EMA-weighted consumption, and localized Weekly Quota navigation.

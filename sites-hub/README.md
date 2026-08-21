@@ -5,6 +5,12 @@ Optional authenticated aggregator for Codex Usage Mesh, running on
 signed, minimized snapshots from enrolled machines and never accepts Codex
 credentials or raw session logs.
 
+For the complete save, review, deployment, access, and post-deployment workflow,
+read [Deploy the central dashboard with OpenAI Sites](../docs/sites-deployment.md).
+Non-interactive machines reach the signed Mesh routes through the separate
+[public Mesh ingress](../docs/mesh-ingress.md); they never receive a Site
+bypass credential.
+
 Enrolled machines may also send a signed `read` envelope to
 `POST /api/mesh/usage`. The node identity resolves its owner server-side, so
 the response can only contain that owner's aggregate. Browser access to the
@@ -28,6 +34,11 @@ The authenticated home page redirects to the shared dashboard at
 `/dashboard/index.html`. Machine enrollment and status remain on the
 separate `/admin` page.
 
+Set the server-side environment variable `MESH_PUBLIC_INGRESS_URL` to the
+canonical HTTPS origin of the dedicated Mesh ingress. `/admin` includes that
+non-secret address in its ready-to-copy association command. Reporting machines
+never receive the private Site credential.
+
 The root `public/` directory is the source of truth for the dashboard UI.
 `npm run dev` and `npm run build` automatically run `npm run sync:dashboard`
 to build `../dist/dashboard/`, verify its manifest, and copy that generated
@@ -39,7 +50,9 @@ contract.
 ## Included Shape
 
 - edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
+- `.openai/hosting.example.json` declares the public D1 and R2 binding shape
+- ignored `.openai/hosting.json` links only your checkout to your private Site
+- local builds create and remove an example-based temporary `hosting.json` when no private linkage exists
 - `vite.config.ts` simulates declared bindings for local development
 - `db/schema.ts` defines enrollments, machines and sanitized session snapshots
 - `drizzle.config.ts` supports local migration generation when needed

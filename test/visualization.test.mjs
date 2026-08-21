@@ -5,6 +5,7 @@ import { boundedRatio, chartDrilldownBuckets, chartDrilldownFilterRange, nextCha
 
 const styles = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const markup = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 
 test("visualization ratios are proportional and safely bounded", () => {
   assert.equal(boundedRatio(25, 100), 0.25);
@@ -85,4 +86,19 @@ test("hourly quota bars shrink to the available width without a horizontal scrol
   assert.match(styles, /@media \(max-width:\s*720px\)[\s\S]*body\[data-page="quota"\] \.cost-chart\.is-hourly\s*\{[^}]*gap:\s*0;/);
   assert.match(app, /Math\.floor\(host\.clientWidth \/ 140\)/);
   assert.match(app, /window\.addEventListener\("resize",[\s\S]*renderCostChart\([\s\S]*"#quotaChart", "quota-hourly"\);/);
+});
+
+test("quota navigation arrows do not depend on mobile font glyph support", () => {
+  assert.match(markup, /id="quotaPrevious"[^>]*>[\s\S]*quota-history-icon is-previous/);
+  assert.match(markup, /id="quotaNext"[^>]*>[\s\S]*quota-history-icon is-next/);
+  assert.match(styles, /\.quota-history-icon\s*\{[^}]*border-top:\s*2px solid currentColor;[^}]*border-right:\s*2px solid currentColor;/);
+  assert.match(styles, /\.quota-history-button:disabled\s*\{[^}]*opacity:\s*\.58;/);
+});
+
+test("sidebar quota shows the reset date, live countdown, and clock-driven rollover", () => {
+  assert.equal((markup.match(/data-quota-nav-countdown/g) || []).length, 2);
+  assert.match(app, /toLocaleString\(locale\(\), \{ dateStyle: "medium", timeStyle: "short" \}\)/);
+  assert.match(app, /function quotaPeriods\([^)]*\)[\s\S]*theoreticalWeeklyQuotaPeriod/);
+  assert.match(app, /setInterval\(\(\) => \{\s*if \(!document\.hidden\) syncQuotaClock\(\);\s*\}, 1_000\);/);
+  assert.match(styles, /\[data-quota-nav-countdown\][^}]*font-variant-numeric:\s*tabular-nums;/s);
 });

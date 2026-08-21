@@ -34,6 +34,7 @@ function session(id = "session-1") {
 test("hub enrolls once, verifies signed updates, blocks replay, and aggregates node identity", async () => {
   const store = new MeshHubStore();
   const enrollment = await store.createEnrollment(now);
+  assert.match(enrollment.code, /^(?:[0-9A-F]{4}-){7}[0-9A-F]{4}$/);
   const identity = generateNodeIdentity();
   const node = await store.enroll({ code: enrollment.code, alias: "PC Bureau", publicKey: identity.publicKey }, now);
   await assert.rejects(() => store.enroll({ code: enrollment.code, alias: "Copie", publicKey: identity.publicKey }, now), /invalide ou expiré/);

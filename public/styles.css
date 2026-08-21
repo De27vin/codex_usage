@@ -135,7 +135,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   line-height: 1.25;
 }
 .sidenav-quota-meta [data-quota-nav-remaining] { color: var(--accent); font-weight: 700; }
-.sidenav-quota-meta [data-quota-nav-reset]:empty { display: none; }
+.sidenav-quota-meta [data-quota-nav-reset],
+.sidenav-quota-meta [data-quota-nav-countdown] { font-variant-numeric: tabular-nums; }
+.sidenav-quota-meta [data-quota-nav-reset]:empty,
+.sidenav-quota-meta [data-quota-nav-countdown]:empty { display: none; }
 
 .app { min-width: 0; flex: 1; display: flex; flex-direction: column; }
 .topbar {
@@ -535,14 +538,26 @@ body[data-page="quota"] .cost-chart.is-hourly .chart-column:first-child label { 
 }
 .quota-history-button {
   min-height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   border: 1px solid var(--border);
   border-radius: 10px;
+  appearance: none;
   background: var(--surface);
   color: var(--text);
-  font-size: 20px;
   cursor: pointer;
 }
-.quota-history-button:disabled { opacity: .35; cursor: default; }
+.quota-history-button:disabled { opacity: .58; color: var(--subtle); cursor: default; }
+.quota-history-icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
+.quota-history-icon.is-previous { margin-left: 3px; transform: rotate(-135deg); }
+.quota-history-icon.is-next { margin-right: 3px; transform: rotate(45deg); }
 .quota-history-select { min-width: 0; display: grid; gap: 6px; color: var(--subtle); font-size: 11px; font-weight: 750; letter-spacing: .1em; text-align: center; text-transform: uppercase; }
 .quota-history-select select {
   width: 100%;
@@ -1015,7 +1030,8 @@ dialog::backdrop { background: #000b; backdrop-filter: blur(3px); }
   .bottom-nav .sidenav-quota svg { margin-top: 0; }
   .bottom-nav .sidenav-quota-copy { justify-items: center; text-align: center; }
   .bottom-nav .sidenav-quota-meta { font-size: 9px; }
-  .bottom-nav [data-quota-nav-reset] { display: none; }
+  .bottom-nav [data-quota-nav-reset],
+  .bottom-nav [data-quota-nav-countdown] { display: none; }
   .mobile-privacy { display: flex; }
   .summary-grid { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -1056,7 +1072,7 @@ dialog::backdrop { background: #000b; backdrop-filter: blur(3px); }
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi-grid.quota-kpis { grid-template-columns: 1fr; }
   .quota-history-nav { top: 104px; padding: 9px 10px; grid-template-columns: 38px minmax(0, 1fr) 38px; gap: 8px; border-radius: 12px; }
-  .quota-history-button { min-height: 40px; font-size: 18px; }
+  .quota-history-button { min-height: 40px; }
   .quota-history-select { gap: 4px; font-size: 10px; }
   .quota-history-select select { min-height: 40px; padding: 0 8px; font-size: 13px; }
   .project-detail-kpis { grid-template-columns: 1fr; }
