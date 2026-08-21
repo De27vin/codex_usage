@@ -102,3 +102,12 @@ test("sidebar quota shows the reset date, live countdown, and clock-driven rollo
   assert.match(app, /setInterval\(\(\) => \{\s*if \(!document\.hidden\) syncQuotaClock\(\);\s*\}, 1_000\);/);
   assert.match(styles, /\[data-quota-nav-countdown\][^}]*font-variant-numeric:\s*tabular-nums;/s);
 });
+
+test("forecast chart hover exposes the date and interpolated series value", () => {
+  assert.match(app, /class="quota-hover-target"[\s\S]*role="slider"/);
+  assert.match(app, /target\.addEventListener\("pointermove", positionFromPointer\)/);
+  assert.match(app, /forecastDateTimeLabel\(activeTime\)/);
+  assert.match(app, /interpolateForecastPercent\(series, activeTime\)/);
+  assert.match(app, /event\.key === "ArrowLeft"[\s\S]*event\.key === "ArrowRight"/);
+  assert.match(styles, /\.quota-hover-tooltip rect\s*\{[^}]*fill:\s*var\(--surface\);/);
+});

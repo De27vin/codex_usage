@@ -667,6 +667,20 @@ body[data-page="quota"] .cost-chart.is-hourly .chart-column:first-child label { 
 .quota-endpoint-label { fill: var(--cached) !important; font-size: 12px !important; font-weight: 700; }
 .quota-endpoint-label.is-over { fill: var(--danger) !important; }
 .quota-observed-label, .quota-window-label { fill: var(--muted) !important; }
+.quota-hover-target { fill: transparent; cursor: crosshair; touch-action: pan-y; }
+.quota-hover-target:focus { outline: none; }
+.quota-hover-target:focus-visible { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.quota-hover-layer { opacity: 0; pointer-events: none; transition: opacity 80ms ease; }
+.quota-hover-layer.is-visible { opacity: 1; }
+.quota-hover-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; opacity: .85; vector-effect: non-scaling-stroke; }
+.quota-hover-point { fill: var(--accent); stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.quota-hover-point.is-projected { fill: var(--cached); }
+.quota-hover-point.is-over { fill: var(--danger); }
+.quota-hover-tooltip rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; opacity: .98; vector-effect: non-scaling-stroke; }
+.quota-hover-date { fill: var(--muted) !important; font-size: 9px !important; }
+.quota-hover-value { fill: var(--accent) !important; font-size: 12px !important; font-weight: 700; }
+.quota-hover-value.is-projected { fill: var(--cached) !important; }
+.quota-hover-value.is-over { fill: var(--danger) !important; }
 .quota-forecast-empty { min-height: 230px; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 12px; text-align: center; }
 
 .analysis-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); align-items: stretch; gap: var(--gutter); }

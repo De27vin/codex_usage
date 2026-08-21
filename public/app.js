@@ -3,7 +3,7 @@ import { DEFAULT_API_PRICING, apiCostOfCalls, apiPriceFor, mergeApiPricing } fro
 import { ADDITIONAL_I18N, LOCALE_TAGS, resolveLanguage } from "./translations.js";
 import { chartDrilldownBuckets, chartDrilldownFilterRange, nextChartGranularity, percentageOf, stackedChartSegments } from "./visualization.js";
 import { latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, theoreticalWeeklyQuotaPeriod, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
-import { buildQuotaForecast, estimateQuotaCapacityCredits, weeklyForecastTicks } from "./quota-forecast.js";
+import { buildQuotaForecast, estimateQuotaCapacityCredits, interpolateForecastPercent, weeklyForecastTicks } from "./quota-forecast.js";
 import { OVERVIEW_PROJECT_LIMIT, projectIdentity } from "./project-identity.js";
 
 // Paint the last browser snapshot immediately, then replace it from the server's
@@ -705,6 +705,10 @@ function forecastDateLabel(value) {
   return new Intl.DateTimeFormat(locale(), { weekday: "short", day: "2-digit", hour: "2-digit" }).format(new Date(value));
 }
 
+function forecastDateTimeLabel(value) {
+  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function quotaForecastSamples(quota) {
   const sessions = (state.data?.sessions || []).filter((session) => !quota?.nodeId || session.nodeId === quota.nodeId);
   return sessions.flatMap((session) => session.calls.map((call) => ({
@@ -751,7 +755,7 @@ function quotaForecastSvg(forecast) {
   const observedMarker = forecast.completed ? "" : `<line class="quota-observed-line" x1="${observedX}" y1="${plot.top}" x2="${observedX}" y2="${height - plot.bottom}"></line>
     <text class="quota-observed-label" x="${Math.min(width - plot.right - 4, observedX + 7)}" y="${plot.top + 13}">${escapeHtml(t("quota.observed"))}</text>`;
   const projectedLine = projectedPoint ? `<polyline class="quota-projected-line${dangerClass}" points="${polyline(forecast.projected)}"></polyline>` : "";
-  return `<svg class="quota-forecast-svg" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="quotaForecastSvgTitle quotaForecastSvgDescription">
+  return `<svg class="quota-forecast-svg" viewBox="0 0 ${width} ${height}" role="group" aria-labelledby="quotaForecastSvgTitle quotaForecastSvgDescription">
     <title id="quotaForecastSvgTitle">${escapeHtml(t("quota.forecastAria"))}</title>
     <desc id="quotaForecastSvgDescription">${escapeHtml(description)}</desc>
     ${grid}${timeTicks}
@@ -765,7 +769,114 @@ function quotaForecastSvg(forecast) {
     <text class="quota-endpoint-label${dangerClass}" x="${x(endpoint.timestamp) - 8}" y="${Math.max(plot.top + 14, y(endpoint.percent) - 10)}" text-anchor="end">${escapeHtml(`${forecastPercent(endpoint.percent)} %`)}</text>
     <text class="quota-window-label" x="${plot.left}" y="${height - 28}" text-anchor="start">${escapeHtml(t("quota.renew"))}</text>
     <text class="quota-window-label" x="${width - plot.right}" y="${height - 28}" text-anchor="end">${escapeHtml(t("quota.reset"))}</text>
+    <g class="quota-hover-layer" aria-hidden="true">
+      <line class="quota-hover-line" x1="0" y1="${plot.top}" x2="0" y2="${height - plot.bottom}"></line>
+      <circle class="quota-hover-point" cx="0" cy="0" r="5"></circle>
+      <g class="quota-hover-tooltip">
+        <rect width="190" height="46" rx="7"></rect>
+        <text class="quota-hover-date" x="10" y="17"></text>
+        <text class="quota-hover-value" x="10" y="35"></text>
+      </g>
+    </g>
+    <rect class="quota-hover-target" x="${plot.left}" y="${plot.top}" width="${plotWidth}" height="${plotHeight}" tabindex="0" role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="${escapeHtml(t("quota.forecastAria"))}"></rect>
   </svg>`;
+}
+
+function bindQuotaForecastHover(chart, forecast) {
+  const svg = chart.querySelector(".quota-forecast-svg");
+  const target = svg?.querySelector(".quota-hover-target");
+  const layer = svg?.querySelector(".quota-hover-layer");
+  if (!svg || !target || !layer) return;
+
+  const plot = { left: 62, right: 22, top: 18, bottom: 42 };
+  const viewBox = svg.viewBox.baseVal;
+  const plotRight = viewBox.width - plot.right;
+  const plotBottom = viewBox.height - plot.bottom;
+  const startTime = Date.parse(forecast.rangeStart);
+  const endTime = Date.parse(forecast.rangeEnd);
+  const actualEndTime = Date.parse(forecast.actual.at(-1).timestamp);
+  const maximumPercent = Math.max(100, forecast.expectedFinalPercent, ...forecast.actual.map((point) => point.percent));
+  const yMaximum = Math.max(125, Math.ceil(maximumPercent * 1.08 / 25) * 25);
+  const line = layer.querySelector(".quota-hover-line");
+  const point = layer.querySelector(".quota-hover-point");
+  const tooltip = layer.querySelector(".quota-hover-tooltip");
+  const date = layer.querySelector(".quota-hover-date");
+  const value = layer.querySelector(".quota-hover-value");
+  const tooltipWidth = 190;
+  const tooltipHeight = 46;
+  let activeTime = Math.min(endTime, Math.max(startTime, Date.parse(forecast.observedAt)));
+
+  const positionAt = (timestamp) => {
+    activeTime = Math.min(endTime, Math.max(startTime, timestamp));
+    const projected = forecast.projected.length > 0 && activeTime > actualEndTime;
+    const series = projected ? forecast.projected : forecast.actual;
+    const percent = interpolateForecastPercent(series, activeTime);
+    if (!Number.isFinite(percent)) return;
+
+    const ratio = (activeTime - startTime) / (endTime - startTime);
+    const x = plot.left + ratio * (plotRight - plot.left);
+    const y = plot.top + (1 - percent / yMaximum) * (plotBottom - plot.top);
+    const safeY = Math.min(plotBottom, Math.max(plot.top, y));
+    const isOver = percent > 100;
+    const kind = projected ? "projected" : "actual";
+    const label = t(projected ? "quota.projected" : "quota.actual");
+    const dateText = forecastDateTimeLabel(activeTime);
+    const valueText = `${label} · ${forecastPercent(percent)} %`;
+    let tooltipX = x + 12;
+    if (tooltipX + tooltipWidth > plotRight) tooltipX = x - tooltipWidth - 12;
+    tooltipX = Math.min(plotRight - tooltipWidth, Math.max(plot.left, tooltipX));
+    let tooltipY = safeY - tooltipHeight - 12;
+    if (tooltipY < plot.top) tooltipY = safeY + 12;
+    tooltipY = Math.min(plotBottom - tooltipHeight, Math.max(plot.top, tooltipY));
+
+    line.setAttribute("x1", x);
+    line.setAttribute("x2", x);
+    point.setAttribute("cx", x);
+    point.setAttribute("cy", safeY);
+    point.setAttribute("class", `quota-hover-point is-${kind}${isOver ? " is-over" : ""}`);
+    tooltip.setAttribute("transform", `translate(${tooltipX} ${tooltipY})`);
+    date.textContent = dateText;
+    value.textContent = valueText;
+    value.setAttribute("class", `quota-hover-value is-${kind}${isOver ? " is-over" : ""}`);
+    layer.classList.add("is-visible");
+    layer.setAttribute("aria-hidden", "false");
+    target.setAttribute("aria-valuenow", Math.round(ratio * 100));
+    target.setAttribute("aria-valuetext", `${dateText} · ${valueText}`);
+  };
+
+  const positionFromPointer = (event) => {
+    const screenPoint = svg.createSVGPoint();
+    screenPoint.x = event.clientX;
+    screenPoint.y = event.clientY;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return;
+    const svgPoint = screenPoint.matrixTransform(matrix.inverse());
+    const ratio = (Math.min(plotRight, Math.max(plot.left, svgPoint.x)) - plot.left) / (plotRight - plot.left);
+    positionAt(startTime + ratio * (endTime - startTime));
+  };
+
+  const hide = () => {
+    layer.classList.remove("is-visible");
+    layer.setAttribute("aria-hidden", "true");
+  };
+
+  target.addEventListener("pointerenter", positionFromPointer);
+  target.addEventListener("pointermove", positionFromPointer);
+  target.addEventListener("pointerleave", () => {
+    if (document.activeElement !== target) hide();
+  });
+  target.addEventListener("focus", () => positionAt(activeTime));
+  target.addEventListener("blur", hide);
+  target.addEventListener("keydown", (event) => {
+    const step = (endTime - startTime) / (7 * 24);
+    if (event.key === "Home") activeTime = startTime;
+    else if (event.key === "End") activeTime = endTime;
+    else if (event.key === "ArrowLeft") activeTime -= step;
+    else if (event.key === "ArrowRight") activeTime += step;
+    else return;
+    event.preventDefault();
+    positionAt(activeTime);
+  });
 }
 
 function renderQuotaForecast() {
@@ -810,6 +921,7 @@ function renderQuotaForecast() {
   if (!current) {
     summary.innerHTML = "";
     chart.innerHTML = quotaForecastSvg(forecast);
+    bindQuotaForecastHover(chart, forecast);
     return;
   }
   const over = forecast.marginPercent < 0;
@@ -819,6 +931,7 @@ function renderQuotaForecast() {
     <article class="forecast-stat"><span>${t("quota.emaHour")}</span><strong>${formatCredits(forecast.creditsPerHour)}</strong><small>${t("quota.forecastHint")}</small></article>
     <article class="forecast-stat"><span>${t("quota.emaDay")}</span><strong>${formatCredits(forecast.creditsPerDay)}</strong><small>${t("quota.forecastHint")}</small></article>`;
   chart.innerHTML = quotaForecastSvg(forecast);
+  bindQuotaForecastHover(chart, forecast);
 }
 
 function isSelectedProject(group) {
