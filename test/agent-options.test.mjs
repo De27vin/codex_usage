@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { parseAgentOptions } from "../src/agent-options.mjs";
+
+test("association command maps only explicit CLI values to agent configuration", () => {
+  const result = parseAgentOptions([
+    "--hub-url", "https://mesh.example",
+    "--associate", "AAAA-BBBB",
+    "--alias", "PC Bureau",
+  ], { EXISTING: "kept" });
+  assert.equal(result.env.MESH_HUB_URL, "https://mesh.example");
+  assert.equal(result.env.MESH_ENROLLMENT_CODE, "AAAA-BBBB");
+  assert.equal(result.env.MESH_NODE_ALIAS, "PC Bureau");
+  assert.equal(result.env.EXISTING, "kept");
+  assert.equal(result.help, false);
+});
+
+test("association command rejects unknown and incomplete options", () => {
+  assert.throws(() => parseAgentOptions(["--token", "secret"], {}), /Option inconnue/);
+  assert.throws(() => parseAgentOptions(["--associate"], {}), /Valeur manquante/);
+});
