@@ -242,7 +242,7 @@
               <a class="primary-button settings-link" href="/admin" data-i18n="settings.openMachineAdmin">Gérer les machines</a>
             </div>
           </article>
-          <article class="panel settings-card">
+          <article id="pwaInstallCard" class="panel settings-card" tabindex="-1">
             <div class="panel-heading">
               <div><p class="eyebrow" data-i18n="pwa.eyebrow">APPLICATION</p><h2 data-i18n="pwa.title">Installer sur ce téléphone</h2></div>
             </div>
@@ -323,6 +323,16 @@
       <div class="dialog-actions"><button id="resetPricing" type="button" class="secondary-button" data-i18n="pricing.reset">Valeurs par défaut</button><button id="savePricing" value="default" class="primary-button" data-i18n="pricing.save">Enregistrer</button></div>
     </form>
   </dialog>
+
+  <aside id="pwaInstallToast" class="pwa-install-toast" aria-labelledby="pwaInstallToastTitle" hidden>
+    <img class="pwa-install-toast-icon" src="./icon-192.png" alt="" aria-hidden="true">
+    <div class="pwa-install-toast-copy">
+      <strong id="pwaInstallToastTitle" data-i18n="pwa.toastTitle">Installer Codex Usage</strong>
+      <p data-i18n="pwa.toastCopy">Ajoutez le tableau de bord à votre écran d’accueil pour l’ouvrir comme une application.</p>
+      <button id="pwaInstallToastAction" type="button" class="primary-button">Installer l’application</button>
+    </div>
+    <button id="pwaInstallToastClose" type="button" class="pwa-install-toast-close" data-i18n-aria="pwa.toastClose" aria-label="Masquer la proposition">×</button>
+  </aside>
 
   <div id="toast" class="toast" role="status"></div>
   <script type="module" src="./app.js"></script>

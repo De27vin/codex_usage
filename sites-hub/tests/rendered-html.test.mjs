@@ -52,6 +52,7 @@ test("packages the local dashboard as the hosted centralized interface", async (
   assert.match(html, /href="\.\/styles\.css"/);
   assert.match(html, /href="\.\/manifest\.webmanifest"/);
   assert.match(html, /id="pwaInstallButton"/);
+  assert.match(html, /id="pwaInstallToast"/);
   assert.match(html, /href="\/admin"/);
   assert.match(app, /\/api\/capabilities/);
   assert.match(app, /\/api\/usage/);

@@ -35,9 +35,23 @@ test("scopes offline caching to the static dashboard shell", async () => {
 
   assert.match(html, /rel="manifest" href="\.\/manifest\.webmanifest"/);
   assert.match(html, /id="pwaInstallButton"/);
+  assert.match(html, /id="pwaInstallToast"/);
+  assert.match(html, /id="pwaInstallToastAction"/);
+  assert.match(html, /id="pwaInstallToastClose"/);
   assert.match(worker, /requestUrl\.pathname\.includes\("\/api\/"\)/);
   assert.doesNotMatch(worker.match(/const SHELL_ASSETS = \[([\s\S]*?)\]/)?.[1] ?? "", /api\/usage|api\/capabilities/);
   for (const asset of ["manifest.webmanifest", "sw.js", "icon-192.png", "icon-512.png", "icon-maskable-512.png"]) {
     assert.ok(DASHBOARD_ASSETS.includes(asset), `${asset} must be part of the deterministic bundle`);
   }
+});
+
+test("offers a dismissible install toast with a native-prompt fallback", async () => {
+  const app = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+
+  assert.match(app, /beforeinstallprompt/);
+  assert.match(app, /codex-usage-pwa-install-toast-dismissed-v1/);
+  assert.match(app, /showPage\("settings"\)/);
+  assert.match(styles, /\.pwa-install-toast\[hidden\]/);
+  assert.match(styles, /bottom: calc\(86px \+ env\(safe-area-inset-bottom\)\)/);
 });
