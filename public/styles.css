@@ -330,6 +330,8 @@ body[data-page="settings"] .periods { display: none; }
 .settings-body { display: grid; gap: 14px; padding: 18px 20px 22px; }
 .settings-body .data-mode-switch { justify-self: start; }
 .settings-link { width: fit-content; text-decoration: none; }
+.pwa-install-button { justify-self: start; }
+.pwa-install-status { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .node-list { display: grid; gap: 8px; }
 .node-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .node-row:first-child { border-top: 0; padding-top: 0; }

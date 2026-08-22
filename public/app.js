@@ -71,6 +71,7 @@ const I18N = {
     "pricing.simulation": "ESTIMATE", "pricing.title": "API rates", "pricing.copy": "Standard API prices in US dollars per million tokens. The observed Fast tier and long-context surcharges are then applied from the official rate card. Tool and cache-write fees are not observable in local sessions.", "pricing.reset": "Official defaults", "pricing.save": "Save", "pricing.model": "Model", "pricing.input": "Input", "pricing.reference": "Reference (GPT-5.6 Sol)", "pricing.modelType": "model", "pricing.effortType": "reasoning: {effort}", "pricing.saved": "Prices saved",
     "freshness": "{n} sessions indexed · updated {time}", "refresh.done": "Sessions refreshed", "load.loading": "Loading local sessions…", "load.error": "Unable to read sessions: {error}", "load.errorToast": "Loading error", "units.tokens": "tokens",
     "duration.seconds": "{n}s", "duration.minutes": "{m}m {s}s", "hero.privacyMesh": "Minimized metadata · private network", "node.all": "All machines", "filter.node": "Filter by machine", "table.node": "Machine", "detail.node": "Observed machine", "freshness.mesh": "{n} sessions · {nodes} machines · updated {time}",
+    "pwa.eyebrow": "APPLICATION", "pwa.title": "Install on this phone", "pwa.copy": "Add Codex Usage to your home screen and open it like an app.", "pwa.install": "Install app", "pwa.ready": "The app is ready to install.", "pwa.instructions": "On Android, open the browser menu and choose Install app or Add to Home screen if the button does not appear.", "pwa.installed": "Codex Usage is installed on this device.", "pwa.dismissed": "Installation was cancelled. You can try again from the browser menu.",
   },
   de: {
     "app.title": "Local Usage — Kosten und Aktivität", "brand.tagline": "für Codex · lokal", "license.independent": "Unabhängige freie Software für lokale Codex-Daten.", "license.source": "Quellcode", "nav.period": "Zeitraum", "nav.main": "Hauptnavigation", "nav.overview": "Übersicht", "nav.projects": "Projekte", "nav.quota": "Wochenkontingent", "nav.conversations": "Konversationen", "nav.settings": "Einstellungen", "action.language": "Sprache", "action.close": "Schließen", "summary.label": "Zusammenfassung des Zeitraums", "summary.kpis": "Wichtigste Kennzahlen",
@@ -210,6 +211,12 @@ const PAGE_I18N = {
 };
 for (const [language, messages] of Object.entries(PAGE_I18N)) Object.assign(I18N[language], messages);
 
+const PWA_I18N = {
+  fr: { "pwa.eyebrow": "APPLICATION", "pwa.title": "Installer sur ce téléphone", "pwa.copy": "Ajoutez Codex Usage à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.install": "Installer l’application", "pwa.ready": "L’application est prête à être installée.", "pwa.instructions": "Sur Android, ouvrez le menu du navigateur puis choisissez Installer l’application ou Ajouter à l’écran d’accueil si le bouton ne s’affiche pas.", "pwa.installed": "Codex Usage est installée sur cet appareil.", "pwa.dismissed": "L’installation a été annulée. Vous pouvez réessayer depuis le menu du navigateur." },
+  de: { "pwa.eyebrow": "ANWENDUNG", "pwa.title": "Auf diesem Telefon installieren", "pwa.copy": "Fügen Sie Codex Usage zum Startbildschirm hinzu und öffnen Sie es wie eine App.", "pwa.install": "App installieren", "pwa.ready": "Die App kann jetzt installiert werden.", "pwa.instructions": "Öffnen Sie unter Android das Browsermenü und wählen Sie App installieren oder Zum Startbildschirm hinzufügen, falls die Schaltfläche nicht erscheint.", "pwa.installed": "Codex Usage ist auf diesem Gerät installiert.", "pwa.dismissed": "Die Installation wurde abgebrochen. Sie können es über das Browsermenü erneut versuchen." },
+};
+for (const [language, messages] of Object.entries(PWA_I18N)) Object.assign(I18N[language], messages);
+
 const PAGES = ["overview", "projects", "quota", "conversations", "settings"];
 const PAGE_TITLE_KEYS = {
   overview: "hero.title",
@@ -263,6 +270,60 @@ const t = (key, values = {}) => (I18N[state.language]?.[key] || I18N.fr[key] || 
 const formatInt = (value) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 0 }).format(value);
 const formatCompact = (value) => new Intl.NumberFormat(locale(), { notation: "compact", maximumFractionDigits: 2 }).format(value);
 const formatDate = (value) => new Intl.DateTimeFormat(locale(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(value);
+
+const pwaInstallState = {
+  prompt: null,
+  installed: window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true,
+  messageKey: "pwa.instructions",
+};
+
+function syncPwaInstallUi() {
+  const button = $("#pwaInstallButton");
+  const status = $("#pwaInstallStatus");
+  if (!button || !status) return;
+
+  button.hidden = pwaInstallState.installed || !pwaInstallState.prompt;
+  const messageKey = pwaInstallState.installed
+    ? "pwa.installed"
+    : pwaInstallState.prompt
+      ? "pwa.ready"
+      : pwaInstallState.messageKey;
+  status.textContent = t(messageKey);
+}
+
+function initializePwa() {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    pwaInstallState.prompt = event;
+    pwaInstallState.messageKey = "pwa.ready";
+    syncPwaInstallUi();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    pwaInstallState.installed = true;
+    pwaInstallState.prompt = null;
+    syncPwaInstallUi();
+  });
+
+  $("#pwaInstallButton")?.addEventListener("click", async () => {
+    const prompt = pwaInstallState.prompt;
+    if (!prompt) return;
+    pwaInstallState.prompt = null;
+    prompt.prompt();
+    const choice = await prompt.userChoice;
+    pwaInstallState.installed = choice.outcome === "accepted";
+    pwaInstallState.messageKey = choice.outcome === "accepted" ? "pwa.installed" : "pwa.dismissed";
+    syncPwaInstallUi();
+  });
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(() => {
+      pwaInstallState.messageKey = "pwa.instructions";
+      syncPwaInstallUi();
+    });
+  }
+  syncPwaInstallUi();
+}
 
 function loadPricing() {
   try { return mergeApiPricing(JSON.parse(localStorage.getItem("codex-usage-pricing")) || {}); }
@@ -1441,6 +1502,7 @@ function applyTranslations() {
   $$('[data-i18n]').forEach((element) => { element.textContent = t(element.dataset.i18n); });
   $$('[data-i18n-placeholder]').forEach((element) => { element.placeholder = t(element.dataset.i18nPlaceholder); });
   $$('[data-i18n-aria]').forEach((element) => { element.setAttribute("aria-label", t(element.dataset.i18nAria)); });
+  syncPwaInstallUi();
   $("#pricingButton").title = t("action.pricing");
   $("#pricingButton").setAttribute("aria-label", t("action.pricing"));
   $("#modelFilter").setAttribute("aria-label", t("filter.model"));
@@ -1670,6 +1732,7 @@ async function initializeDashboard() {
   await loadData();
 }
 
+initializePwa();
 void initializeDashboard();
 
 function syncQuotaClock() {
