@@ -10,6 +10,8 @@ Local Usage turns the Codex session metadata stored on your computer into a fast
 
 Setup guides: [deploy the central dashboard with OpenAI Sites](docs/sites-deployment.md) · [deploy the public Mesh ingress](docs/mesh-ingress.md) · [install a reporting agent](docs/reporting-agent.md)
 
+☕ If this dashboard saved you from doing token math on a napkin, [buy me a coffee](https://buymeacoffee.com/capitaine). The dashboard runs without caffeine; its maintainer is less certain.
+
 ## What the application shows
 
 - API-equivalent cost using the observed Standard or Fast service tier, split between fresh input, cached input, and output;
