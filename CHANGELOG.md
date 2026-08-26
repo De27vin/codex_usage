@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added an official Windows `CodexUsageMesh` Task Scheduler installer, single-instance PowerShell supervisor, sleep/resume recovery, non-zero-exit restart loop, UTF-8 timestamped logs, state-preserving updates, and task/process/sync/hub diagnostics.
+
 ## 1.3.0 — 2026-08-20
 
 - Replaced quota-history arrow glyphs with font-independent CSS chevrons and improved disabled-state visibility on mobile screens.

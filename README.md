@@ -10,6 +10,8 @@ Local Usage turns the Codex session metadata stored on your computer into a fast
 
 Setup guides: [deploy the central dashboard with OpenAI Sites](docs/sites-deployment.md) · [deploy the public Mesh ingress](docs/mesh-ingress.md) · [install a reporting agent](docs/reporting-agent.md)
 
+☕ If this dashboard saved you from doing token math on a napkin, [buy me a coffee](https://buymeacoffee.com/capitaine). The dashboard runs without caffeine; its maintainer is less certain.
+
 ## What the application shows
 
 - API-equivalent cost using the observed Standard or Fast service tier, split between fresh input, cached input, and output;
@@ -219,7 +221,7 @@ Compose deliberately refuses to create missing host paths. `docker compose down`
 
 An agent can be added to any Windows, macOS, or Linux computer that runs Codex and can run Node.js or Docker. Each machine remains authoritative for its own logs: it analyzes locally, removes disallowed fields, signs the result with an Ed25519 key created on that machine, and pushes the minimized snapshot to the hub.
 
-For a complete installation procedure, including Node.js and Docker operation, verification, updates, revocation, and recovery, read [Install a reporting agent](docs/reporting-agent.md).
+For a complete installation procedure, including Node.js and Docker operation, verification, updates, revocation, and recovery, read [Install a reporting agent](docs/reporting-agent.md). Windows laptops should use the official [Task Scheduler supervisor](docs/windows-agent.md) for sleep/resume recovery and automatic restart.
 
 ### 1. Create an association command
 

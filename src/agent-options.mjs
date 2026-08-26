@@ -8,10 +8,15 @@ const OPTION_ENV = new Map([
 export function parseAgentOptions(argv, baseEnv = process.env) {
   const env = { ...baseEnv };
   let help = false;
+  let once = false;
   for (let index = 0; index < argv.length; index += 1) {
     const option = argv[index];
     if (option === "--help" || option === "-h") {
       help = true;
+      continue;
+    }
+    if (option === "--once") {
+      once = true;
       continue;
     }
     const envName = OPTION_ENV.get(option);
@@ -21,7 +26,7 @@ export function parseAgentOptions(argv, baseEnv = process.env) {
     env[envName] = value;
     index += 1;
   }
-  return { env, help };
+  return { env, help, once };
 }
 
 export const AGENT_HELP = `Usage : npm run start:agent -- [options]
@@ -30,4 +35,5 @@ export const AGENT_HELP = `Usage : npm run start:agent -- [options]
   --hub-url <url>      Adresse publique fournie par la page /admin
   --alias <nom>        Nom lisible de la machine (facultatif)
   --state-path <fichier> Emplacement de l’identité persistante (facultatif)
+  --once               Synchronise une fois puis quitte (installation)
   --help               Affiche cette aide`;

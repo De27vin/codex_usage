@@ -123,6 +123,7 @@ export function buildQuotaForecast({
   rangeStart,
   rangeEnd,
   observedAt,
+  asOf = observedAt,
   usedPercent,
   project = true,
   halfLifeHours = DEFAULT_EMA_HALF_LIFE_HOURS,
@@ -132,17 +133,19 @@ export function buildQuotaForecast({
   const startTime = validTime(rangeStart);
   const endTime = validTime(rangeEnd);
   const observationTime = validTime(observedAt);
+  const asOfTime = validTime(asOf);
   const hasUsedPercent = usedPercent !== null && usedPercent !== undefined && usedPercent !== "";
   const parsedUsedPercent = Number(usedPercent);
   const safeUsedPercent = finiteNonNegative(parsedUsedPercent);
-  if (startTime === null || endTime === null || observationTime === null || endTime <= startTime) {
+  if (startTime === null || endTime === null || observationTime === null || asOfTime === null || endTime <= startTime) {
     return { status: "unavailable" };
   }
-  const anchorTime = Math.min(endTime, observationTime);
-  if (anchorTime <= startTime || !hasUsedPercent || !Number.isFinite(parsedUsedPercent) || parsedUsedPercent < 0) return { status: "insufficient" };
+  const observedAnchorTime = Math.min(endTime, observationTime);
+  const anchorTime = Math.min(endTime, Math.max(observedAnchorTime, asOfTime));
+  if (observedAnchorTime <= startTime || !hasUsedPercent || !Number.isFinite(parsedUsedPercent) || parsedUsedPercent < 0) return { status: "insufficient" };
 
-  const currentSamples = normalizedSamples(samples, startTime, anchorTime);
-  const currentCredits = currentSamples.reduce((sum, sample) => sum + sample.value, 0);
+  const observedSamples = normalizedSamples(samples, startTime, observedAnchorTime);
+  const currentCredits = observedSamples.reduce((sum, sample) => sum + sample.value, 0);
   const historicalCapacityCredits = finiteNonNegative(capacityCredits);
   const currentCapacityCredits = safeUsedPercent > 0 && currentCredits > 0 ? currentCredits * 100 / safeUsedPercent : 0;
   const calibratedCapacityCredits = historicalCapacityCredits || currentCapacityCredits;
@@ -156,12 +159,17 @@ export function buildQuotaForecast({
   const remainingHours = Math.max(0, (endTime - anchorTime) / FORECAST_HOUR_MS);
   const shouldProject = project !== false && anchorTime < endTime;
   const expectedFinalPercent = shouldProject ? safeUsedPercent + remainingHours * percentPerHour : safeUsedPercent;
+  const actual = cumulativePoints(observedSamples, startTime, observedAnchorTime, safeUsedPercent, currentCredits);
+  if (anchorTime > observedAnchorTime) {
+    actual.push({ timestamp: new Date(anchorTime).toISOString(), percent: safeUsedPercent });
+  }
 
   return {
     status: "ready",
     rangeStart: new Date(startTime).toISOString(),
     rangeEnd: new Date(endTime).toISOString(),
-    observedAt: new Date(anchorTime).toISOString(),
+    observedAt: new Date(observedAnchorTime).toISOString(),
+    asOf: new Date(anchorTime).toISOString(),
     usedPercent: safeUsedPercent,
     currentCredits,
     capacityCredits: calibratedCapacityCredits,
@@ -172,7 +180,7 @@ export function buildQuotaForecast({
     marginPercent: 100 - expectedFinalPercent,
     halfLifeHours: Math.max(1, finiteNonNegative(halfLifeHours)),
     completed: !shouldProject,
-    actual: cumulativePoints(currentSamples, startTime, anchorTime, safeUsedPercent, currentCredits),
+    actual,
     projected: shouldProject ? projectedPoints(anchorTime, endTime, safeUsedPercent, percentPerHour) : [],
   };
 }
