@@ -43,7 +43,7 @@ function Resolve-Configuration {
     $resolvedState = if ($StatePath) {
         Resolve-FullPath $StatePath
     } else {
-        Join-Path $resolvedInstall 'state\mesh-agent.json'
+        Join-Path $resolvedInstall 'mesh-agent.windows.json'
     }
     $resolvedNode = if ($NodePath) {
         Resolve-FullPath $NodePath

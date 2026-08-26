@@ -26,7 +26,7 @@ The command:
 
 1. stops only the local task named `CodexUsageMesh` if it already exists;
 2. refuses to continue if another matching supervisor or Node agent is still running;
-3. copies the legacy state once to `%LOCALAPPDATA%\CodexUsageMesh\state\mesh-agent.json` when the installed state does not exist;
+3. copies the legacy state once to `%LOCALAPPDATA%\CodexUsageMesh\mesh-agent.windows.json` when the installed state does not exist;
 4. never overwrites an installed state during later runs;
 5. generates `.cache\windows-agent\CodexUsageMesh.Supervisor.ps1` in the repository without an association code or infrastructure credential, avoiding Windows policies that block scheduled scripts from `AppData`;
 6. registers and starts the current user's task.
