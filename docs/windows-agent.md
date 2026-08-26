@@ -16,7 +16,7 @@ Run the commands from the repository root in PowerShell. Administrator elevation
 
 ## Install an already-associated machine
 
-For a machine such as `HQVISSI-LAP19` where `.cache\mesh-agent.json` already contains the working association:
+For a machine such as `WINDOWS-LAPTOP` where `.cache\mesh-agent.json` already contains the working association:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Install-CodexUsageMesh.ps1 -Action Install
@@ -26,7 +26,7 @@ The command:
 
 1. stops only the local task named `CodexUsageMesh` if it already exists;
 2. refuses to continue if another matching supervisor or Node agent is still running;
-3. copies the legacy state once to `%LOCALAPPDATA%\CodexUsageMesh\mesh-agent.windows.json` when the installed state does not exist;
+3. copies an earlier `%LOCALAPPDATA%\CodexUsageMesh\state\mesh-agent.json` state, or the legacy repository `.cache\mesh-agent.json`, once to `%LOCALAPPDATA%\CodexUsageMesh\mesh-agent.windows.json` when the installed state does not exist;
 4. never overwrites an installed state during later runs;
 5. generates `.cache\windows-agent\CodexUsageMesh.Supervisor.ps1` in the repository without an association code or infrastructure credential, avoiding Windows policies that block scheduled scripts from `AppData`;
 6. registers and starts the current user's task.
@@ -40,7 +40,7 @@ Create a one-time code under the central Site's `/admin` page, then immediately 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Install-CodexUsageMesh.ps1 `
   -Action Install `
-  -HubUrl "https://codex-usage-mesh-ingress.capitainegreenpearl.workers.dev" `
+  -HubUrl "https://your-mesh-ingress.example" `
   -AssociationCode "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-0000-1111"
 ```
 
@@ -97,7 +97,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Instal
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Install-CodexUsageMesh.ps1 -Action Diagnose
 ```
 
-`Update` stops and replaces only the local task definition. The installed state file is detected before the legacy source and is never overwritten, so the node ID, private signing key, sequence, alias, `lastSyncAt`, and hub URL survive. No new association code is needed.
+`Update` stops and replaces only the local task definition. The current installed state is never overwritten. If the flat state does not exist yet, an earlier supervised state under `%LOCALAPPDATA%\CodexUsageMesh\state\mesh-agent.json` takes priority over the repository legacy source and is copied once, so the node ID, private signing key, sequence, alias, `lastSyncAt`, and hub URL survive. No new association code is needed.
 
 If the checkout moved, run `Update` from the new checkout. The task and launcher will point to the new repository path while continuing to use the same state under `%LOCALAPPDATA%`.
 

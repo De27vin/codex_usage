@@ -45,6 +45,12 @@ function Resolve-Configuration {
     } else {
         Join-Path $resolvedInstall 'mesh-agent.windows.json'
     }
+    $previousInstalledStatePath = Join-Path $resolvedInstall 'state\mesh-agent.json'
+    $legacyStatePath = if (Test-Path -LiteralPath $previousInstalledStatePath -PathType Leaf) {
+        $previousInstalledStatePath
+    } else {
+        Join-Path $resolvedRepo '.cache\mesh-agent.json'
+    }
     $resolvedNode = if ($NodePath) {
         Resolve-FullPath $NodePath
     } elseif ($Action -in @('Install', 'Update')) {
@@ -59,7 +65,7 @@ function Resolve-Configuration {
         RepoRoot = $resolvedRepo
         InstallDirectory = $resolvedInstall
         StatePath = $resolvedState
-        LegacyStatePath = Join-Path $resolvedRepo '.cache\mesh-agent.json'
+        LegacyStatePath = $legacyStatePath
         NodePath = $resolvedNode
         LauncherPath = Join-Path $resolvedRepo ".cache\windows-agent\$TaskName.Supervisor.ps1"
         LogPath = Join-Path $resolvedInstall 'logs\supervisor.log'

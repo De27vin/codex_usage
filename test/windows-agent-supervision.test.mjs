@@ -40,7 +40,7 @@ test("existing Mesh state is copied once and never overwritten during an update"
   const destinationPath = path.join(directory, "installed", "state", "mesh-agent.json");
   const sourceState = JSON.stringify({
     nodeId: "node-existing",
-    alias: "HQVISSI-LAP19",
+    alias: "WINDOWS-LAPTOP",
     sequence: 42,
     lastSyncAt: "2026-08-25T07:30:00.000Z",
     privateKey: "private-existing",
@@ -61,6 +61,17 @@ test("existing Mesh state is copied once and never overwritten during an update"
   const update = await preserveExistingAgentState({ sourcePath, destinationPath });
   assert.equal(update.status, "existing");
   assert.equal(await readFile(destinationPath, "utf8"), installedState);
+});
+
+test("Windows installer migrates the previous supervised state without publishing owner-specific examples", async () => {
+  const installer = await readFile(new URL("../scripts/windows/Install-CodexUsageMesh.ps1", import.meta.url), "utf8");
+  const documentation = await readFile(new URL("../docs/windows-agent.md", import.meta.url), "utf8");
+
+  assert.match(installer, /previousInstalledStatePath = Join-Path \$resolvedInstall 'state\\mesh-agent\.json'/);
+  assert.match(installer, /Test-Path -LiteralPath \$previousInstalledStatePath -PathType Leaf/);
+  assert.match(installer, /LegacyStatePath = \$legacyStatePath/);
+  assert.match(documentation, /https:\/\/your-mesh-ingress\.example/);
+  assert.doesNotMatch(documentation, /capitainegreenpearl/);
 });
 
 test("Windows supervisor logs a non-zero exit and restarts the agent once", { skip: process.platform !== "win32" }, async () => {
