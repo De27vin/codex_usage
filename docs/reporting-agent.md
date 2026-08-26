@@ -73,9 +73,10 @@ Protect `MESH_AGENT_STATE_PATH`. Deleting it creates a new signing identity and 
 
 ## 4. Keep the agent running
 
-First run the association command interactively and verify enrollment. Then configure only `npm run start:agent` through the operating system's service manager:
+On Windows, use the supported [`CodexUsageMesh` supervisor](windows-agent.md). It installs or updates the current user's scheduled task, preserves an existing association, recovers after sleep/resume, restarts non-zero Node exits, prevents overlapping task instances, and provides a health diagnostic.
 
-- Windows: Task Scheduler or a managed Windows service;
+On macOS or Linux, first run the association command interactively and verify enrollment. Then configure only `npm run start:agent` through the operating system's service manager:
+
 - macOS: `launchd`;
 - Linux: `systemd` or another supervised service.
 
@@ -134,6 +135,8 @@ The Mesh payload excludes raw JSONL, prompts, responses, reasoning, tool output,
 
 ## Update an agent
 
+For Windows Task Scheduler installations, follow [Update the repository and supervisor](windows-agent.md#update-the-repository-and-supervisor). The installed state is copy-if-absent and is never overwritten by an update.
+
 For a source installation:
 
 1. stop the supervised process;
@@ -147,6 +150,8 @@ For Docker, rebuild or pull the intended image, recreate the container while ret
 Keep agents and the central hub on compatible Mesh protocol versions during schema or protocol upgrades.
 
 ## Revoke, remove, or replace a machine
+
+The Windows uninstall command removes only the local scheduled task and generated launcher. It deliberately retains local state and never revokes this or any other machine; see [Uninstall local supervision](windows-agent.md#uninstall-local-supervision).
 
 To stop future access, revoke the machine from the hub's `/admin` page first. Then stop and remove the local process or container. The local state file can be retained for diagnosis, or deleted after revocation when permanent removal is intended.
 

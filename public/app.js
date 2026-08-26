@@ -1021,6 +1021,7 @@ function renderQuotaForecast() {
     rangeStart: range.start,
     rangeEnd: range.resetsAt,
     observedAt: current ? (quota.observedAt || new Date()) : range.resetsAt,
+    asOf: current ? new Date() : range.resetsAt,
     usedPercent,
     project: current,
     capacityCredits: current ? quotaForecastCapacity(samples, quota) : null,

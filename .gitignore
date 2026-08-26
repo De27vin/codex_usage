@@ -13,6 +13,7 @@ dist/
 sites-hub/public/dashboard/
 .cache/
 .codex/
+.codex-remote-attachments/
 auth.json
 
 # Per-deployment Sites and Cloudflare linkage. Commit only the example files.

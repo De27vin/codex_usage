@@ -63,6 +63,30 @@ test("the same consumed credits produce a higher forecast when they are recent",
   assert.ok(recent.expectedFinalPercent > older.expectedFinalPercent);
 });
 
+test("a stale quota observation stays flat through the current chart date", () => {
+  const rangeStart = Date.parse("2026-08-24T04:34:00.000Z");
+  const observedAt = Date.parse("2026-08-25T10:00:00.000Z");
+  const asOf = Date.parse("2026-08-26T08:00:00.000Z");
+  const rangeEnd = rangeStart + 7 * 24 * FORECAST_HOUR_MS;
+  const forecast = buildQuotaForecast({
+    samples: [{ timestamp: new Date(observedAt - FORECAST_HOUR_MS).toISOString(), value: 12 }],
+    rangeStart,
+    rangeEnd,
+    observedAt,
+    asOf,
+    usedPercent: 12,
+  });
+
+  assert.equal(forecast.status, "ready");
+  assert.equal(forecast.observedAt, new Date(observedAt).toISOString());
+  assert.equal(forecast.asOf, new Date(asOf).toISOString());
+  assert.deepEqual(forecast.actual.slice(-2), [
+    { timestamp: new Date(observedAt).toISOString(), percent: 12 },
+    { timestamp: new Date(asOf).toISOString(), percent: 12 },
+  ]);
+  assert.equal(forecast.projected[0].timestamp, new Date(asOf).toISOString());
+});
+
 test("a new quota uses historical capacity and recent EMA consumption immediately", () => {
   const rangeStart = Date.parse("2026-08-20T05:00:00.000Z");
   const observedAt = rangeStart + FORECAST_HOUR_MS / 2;

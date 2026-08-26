@@ -15,6 +15,14 @@ if (!collector.meshAgent) {
   throw new Error("Cette machine n’est pas encore associée. Copiez la commande générée dans la page /admin.");
 }
 
+if (options.once) {
+  const data = await collector.refresh();
+  await collector.meshAgent.sync(data);
+  collector.stop();
+  console.log(`Synchronisation ponctuelle terminée pour ${collector.meshAgent.status().alias}.`);
+  process.exit(0);
+}
+
 collector.start({ unrefTimer: false });
 await collector.refresh();
 console.log(`Collecteur Codex actif pour ${collector.meshAgent.status().alias}. Aucune interface locale n’est servie.`);

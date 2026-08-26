@@ -13,6 +13,13 @@ test("association command maps only explicit CLI values to agent configuration",
   assert.equal(result.env.MESH_NODE_ALIAS, "PC Bureau");
   assert.equal(result.env.EXISTING, "kept");
   assert.equal(result.help, false);
+  assert.equal(result.once, false);
+});
+
+test("one-shot installation mode is explicit and does not consume a value", () => {
+  const result = parseAgentOptions(["--once", "--state-path", "C:\\state.json"], {});
+  assert.equal(result.once, true);
+  assert.equal(result.env.MESH_AGENT_STATE_PATH, "C:\\state.json");
 });
 
 test("association command rejects unknown and incomplete options", () => {
