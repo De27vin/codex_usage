@@ -9,7 +9,8 @@ FROM node:22-alpine AS runtime
 
 # The runtime uses Node.js directly and has no npm dependencies. Remove the
 # bundled package managers so their unused dependency trees are not shipped.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
       /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
@@ -18,7 +19,7 @@ LABEL org.opencontainers.image.source="https://github.com/capisoft-lib/codex_usa
       org.opencontainers.image.licenses="AGPL-3.0-or-later" \
       org.opencontainers.image.title="Local Usage Dashboard for Codex" \
       org.opencontainers.image.description="Independent local dashboard for Codex usage, token activity, and cost estimates" \
-      org.opencontainers.image.version="1.3.0"
+      org.opencontainers.image.version="1.4.0"
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
