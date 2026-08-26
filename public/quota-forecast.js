@@ -49,6 +49,24 @@ export function weeklyForecastTicks(rangeStart, rangeEnd) {
   return Array.from({ length: 8 }, (_, index) => startTime + index * (endTime - startTime) / 7);
 }
 
+export function interpolateForecastPercent(points, timestamp) {
+  const targetTime = validTime(timestamp);
+  const values = (points || [])
+    .map((point) => ({ time: validTime(point?.timestamp), percent: Number(point?.percent) }))
+    .filter((point) => point.time !== null && Number.isFinite(point.percent))
+    .sort((left, right) => left.time - right.time);
+  if (targetTime === null || !values.length) return null;
+  if (targetTime <= values[0].time) return values[0].percent;
+  if (targetTime >= values.at(-1).time) return values.at(-1).percent;
+
+  const rightIndex = values.findIndex((point) => point.time >= targetTime);
+  const left = values[rightIndex - 1];
+  const right = values[rightIndex];
+  if (right.time === left.time) return right.percent;
+  const ratio = (targetTime - left.time) / (right.time - left.time);
+  return left.percent + (right.percent - left.percent) * ratio;
+}
+
 export function estimateQuotaCapacityCredits({
   samples = [],
   quotaPeriods = [],

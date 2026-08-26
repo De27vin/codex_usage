@@ -4,8 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0e110f">
   <title>Local Usage — Coûts et activité</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body data-page="overview">
@@ -239,6 +242,16 @@
               <a class="primary-button settings-link" href="/admin" data-i18n="settings.openMachineAdmin">Gérer les machines</a>
             </div>
           </article>
+          <article id="pwaInstallCard" class="panel settings-card" tabindex="-1">
+            <div class="panel-heading">
+              <div><p class="eyebrow" data-i18n="pwa.eyebrow">APPLICATION</p><h2 data-i18n="pwa.title">Installer sur ce téléphone</h2></div>
+            </div>
+            <div class="settings-body">
+              <p class="dialog-copy" data-i18n="pwa.copy">Ajoutez Codex Usage à votre écran d’accueil pour l’ouvrir comme une application.</p>
+              <button id="pwaInstallButton" type="button" class="primary-button pwa-install-button" data-i18n="pwa.install" hidden>Installer l’application</button>
+              <p id="pwaInstallStatus" class="pwa-install-status" role="status" aria-live="polite"></p>
+            </div>
+          </article>
           <article class="panel settings-card">
             <div class="panel-heading">
               <div><p class="eyebrow" data-i18n="pricing.simulation">ESTIMATION</p><h2 data-i18n="pricing.title">Tarifs API</h2></div>
@@ -310,6 +323,16 @@
       <div class="dialog-actions"><button id="resetPricing" type="button" class="secondary-button" data-i18n="pricing.reset">Valeurs par défaut</button><button id="savePricing" value="default" class="primary-button" data-i18n="pricing.save">Enregistrer</button></div>
     </form>
   </dialog>
+
+  <aside id="pwaInstallToast" class="pwa-install-toast" aria-labelledby="pwaInstallToastTitle" hidden>
+    <img class="pwa-install-toast-icon" src="./icon-192.png" alt="" aria-hidden="true">
+    <div class="pwa-install-toast-copy">
+      <strong id="pwaInstallToastTitle" data-i18n="pwa.toastTitle">Installer Codex Usage</strong>
+      <p data-i18n="pwa.toastCopy">Ajoutez le tableau de bord à votre écran d’accueil pour l’ouvrir comme une application.</p>
+      <button id="pwaInstallToastAction" type="button" class="primary-button">Installer l’application</button>
+    </div>
+    <button id="pwaInstallToastClose" type="button" class="pwa-install-toast-close" data-i18n-aria="pwa.toastClose" aria-label="Masquer la proposition">×</button>
+  </aside>
 
   <div id="toast" class="toast" role="status"></div>
   <script type="module" src="./app.js"></script>

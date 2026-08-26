@@ -56,16 +56,20 @@ test("local HTTP adapter serves the generated UI and common API", async () => {
   try {
     const baseUrl = `http://127.0.0.1:${port}`;
     await waitForServer(`${baseUrl}/api/health`, child);
-    const [capabilities, usage, html] = await Promise.all([
+    const [capabilities, usage, html, manifestResponse, iconResponse] = await Promise.all([
       fetch(`${baseUrl}/api/capabilities`).then((response) => response.json()),
       fetch(`${baseUrl}/api/usage?source=local`).then((response) => response.json()),
       fetch(`${baseUrl}/`).then((response) => response.text()),
+      fetch(`${baseUrl}/manifest.webmanifest`),
+      fetch(`${baseUrl}/icon-192.png`),
     ]);
     assert.equal(capabilities.runtime, "local");
     assert.deepEqual(capabilities.sources, ["local"]);
     assert.equal(usage.apiVersion, 1);
     assert.deepEqual(usage.sessions, []);
     assert.match(html, /Quota hebdomadaire/);
+    assert.match(manifestResponse.headers.get("content-type") ?? "", /^application\/manifest\+json\b/i);
+    assert.match(iconResponse.headers.get("content-type") ?? "", /^image\/png\b/i);
   } finally {
     child.kill();
     await Promise.race([

@@ -3,7 +3,7 @@ import { DEFAULT_API_PRICING, apiCostOfCalls, apiPriceFor, mergeApiPricing } fro
 import { ADDITIONAL_I18N, LOCALE_TAGS, resolveLanguage } from "./translations.js";
 import { chartDrilldownBuckets, chartDrilldownFilterRange, nextChartGranularity, percentageOf, stackedChartSegments } from "./visualization.js";
 import { latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, theoreticalWeeklyQuotaPeriod, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
-import { buildQuotaForecast, estimateQuotaCapacityCredits, weeklyForecastTicks } from "./quota-forecast.js";
+import { buildQuotaForecast, estimateQuotaCapacityCredits, interpolateForecastPercent, weeklyForecastTicks } from "./quota-forecast.js";
 import { OVERVIEW_PROJECT_LIMIT, projectIdentity } from "./project-identity.js";
 
 // Paint the last browser snapshot immediately, then replace it from the server's
@@ -71,6 +71,7 @@ const I18N = {
     "pricing.simulation": "ESTIMATE", "pricing.title": "API rates", "pricing.copy": "Standard API prices in US dollars per million tokens. The observed Fast tier and long-context surcharges are then applied from the official rate card. Tool and cache-write fees are not observable in local sessions.", "pricing.reset": "Official defaults", "pricing.save": "Save", "pricing.model": "Model", "pricing.input": "Input", "pricing.reference": "Reference (GPT-5.6 Sol)", "pricing.modelType": "model", "pricing.effortType": "reasoning: {effort}", "pricing.saved": "Prices saved",
     "freshness": "{n} sessions indexed · updated {time}", "refresh.done": "Sessions refreshed", "load.loading": "Loading local sessions…", "load.error": "Unable to read sessions: {error}", "load.errorToast": "Loading error", "units.tokens": "tokens",
     "duration.seconds": "{n}s", "duration.minutes": "{m}m {s}s", "hero.privacyMesh": "Minimized metadata · private network", "node.all": "All machines", "filter.node": "Filter by machine", "table.node": "Machine", "detail.node": "Observed machine", "freshness.mesh": "{n} sessions · {nodes} machines · updated {time}",
+    "pwa.eyebrow": "APPLICATION", "pwa.title": "Install on this phone", "pwa.copy": "Add Codex Usage to your home screen and open it like an app.", "pwa.install": "Install app", "pwa.ready": "The app is ready to install.", "pwa.instructions": "On Android, open the browser menu and choose Install app or Add to Home screen if the button does not appear.", "pwa.installed": "Codex Usage is installed on this device.", "pwa.dismissed": "Installation was cancelled. You can try again from the browser menu.", "pwa.toastTitle": "Install Codex Usage", "pwa.toastCopy": "Add the dashboard to your home screen and open it like an app.", "pwa.howTo": "See how", "pwa.toastClose": "Hide install suggestion",
   },
   de: {
     "app.title": "Local Usage — Kosten und Aktivität", "brand.tagline": "für Codex · lokal", "license.independent": "Unabhängige freie Software für lokale Codex-Daten.", "license.source": "Quellcode", "nav.period": "Zeitraum", "nav.main": "Hauptnavigation", "nav.overview": "Übersicht", "nav.projects": "Projekte", "nav.quota": "Wochenkontingent", "nav.conversations": "Konversationen", "nav.settings": "Einstellungen", "action.language": "Sprache", "action.close": "Schließen", "summary.label": "Zusammenfassung des Zeitraums", "summary.kpis": "Wichtigste Kennzahlen",
@@ -210,6 +211,12 @@ const PAGE_I18N = {
 };
 for (const [language, messages] of Object.entries(PAGE_I18N)) Object.assign(I18N[language], messages);
 
+const PWA_I18N = {
+  fr: { "pwa.eyebrow": "APPLICATION", "pwa.title": "Installer sur ce téléphone", "pwa.copy": "Ajoutez Codex Usage à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.install": "Installer l’application", "pwa.ready": "L’application est prête à être installée.", "pwa.instructions": "Sur Android, ouvrez le menu du navigateur puis choisissez Installer l’application ou Ajouter à l’écran d’accueil si le bouton ne s’affiche pas.", "pwa.installed": "Codex Usage est installée sur cet appareil.", "pwa.dismissed": "L’installation a été annulée. Vous pouvez réessayer depuis le menu du navigateur.", "pwa.toastTitle": "Installer Codex Usage", "pwa.toastCopy": "Ajoutez le tableau de bord à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.howTo": "Voir comment", "pwa.toastClose": "Masquer la proposition" },
+  de: { "pwa.eyebrow": "ANWENDUNG", "pwa.title": "Auf diesem Telefon installieren", "pwa.copy": "Fügen Sie Codex Usage zum Startbildschirm hinzu und öffnen Sie es wie eine App.", "pwa.install": "App installieren", "pwa.ready": "Die App kann jetzt installiert werden.", "pwa.instructions": "Öffnen Sie unter Android das Browsermenü und wählen Sie App installieren oder Zum Startbildschirm hinzufügen, falls die Schaltfläche nicht erscheint.", "pwa.installed": "Codex Usage ist auf diesem Gerät installiert.", "pwa.dismissed": "Die Installation wurde abgebrochen. Sie können es über das Browsermenü erneut versuchen.", "pwa.toastTitle": "Codex Usage installieren", "pwa.toastCopy": "Fügen Sie das Dashboard zum Startbildschirm hinzu und öffnen Sie es wie eine App.", "pwa.howTo": "Anleitung", "pwa.toastClose": "Installationshinweis ausblenden" },
+};
+for (const [language, messages] of Object.entries(PWA_I18N)) Object.assign(I18N[language], messages);
+
 const PAGES = ["overview", "projects", "quota", "conversations", "settings"];
 const PAGE_TITLE_KEYS = {
   overview: "hero.title",
@@ -263,6 +270,111 @@ const t = (key, values = {}) => (I18N[state.language]?.[key] || I18N.fr[key] || 
 const formatInt = (value) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 0 }).format(value);
 const formatCompact = (value) => new Intl.NumberFormat(locale(), { notation: "compact", maximumFractionDigits: 2 }).format(value);
 const formatDate = (value) => new Intl.DateTimeFormat(locale(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(value);
+
+const PWA_INSTALL_TOAST_DISMISSED_KEY = "codex-usage-pwa-install-toast-dismissed-v1";
+const PWA_INSTALLED_KEY = "codex-usage-pwa-installed";
+
+function pwaPreference(key) {
+  try { return localStorage.getItem(key) === "1"; }
+  catch { return false; }
+}
+
+const pwaInstallState = {
+  prompt: null,
+  installed: window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true || pwaPreference(PWA_INSTALLED_KEY),
+  toastDismissed: pwaPreference(PWA_INSTALL_TOAST_DISMISSED_KEY),
+  toastReady: false,
+  mobile: /Android/i.test(navigator.userAgent) || navigator.userAgentData?.mobile === true,
+  messageKey: "pwa.instructions",
+};
+
+function rememberPwaPreference(key) {
+  try { localStorage.setItem(key, "1"); }
+  catch { /* The current page still reflects the user's choice. */ }
+}
+
+function syncPwaInstallUi() {
+  const button = $("#pwaInstallButton");
+  const status = $("#pwaInstallStatus");
+  if (button && status) {
+    button.hidden = pwaInstallState.installed || !pwaInstallState.prompt;
+    const messageKey = pwaInstallState.installed
+      ? "pwa.installed"
+      : pwaInstallState.prompt
+        ? "pwa.ready"
+        : pwaInstallState.messageKey;
+    status.textContent = t(messageKey);
+  }
+
+  const installToast = $("#pwaInstallToast");
+  const toastAction = $("#pwaInstallToastAction");
+  if (installToast && toastAction) {
+    installToast.hidden = pwaInstallState.installed || pwaInstallState.toastDismissed || !pwaInstallState.toastReady;
+    toastAction.textContent = t(pwaInstallState.prompt ? "pwa.install" : "pwa.howTo");
+  }
+}
+
+function dismissPwaInstallToast() {
+  pwaInstallState.toastDismissed = true;
+  rememberPwaPreference(PWA_INSTALL_TOAST_DISMISSED_KEY);
+  syncPwaInstallUi();
+}
+
+async function requestPwaInstall() {
+  const prompt = pwaInstallState.prompt;
+  if (!prompt) {
+    showPage("settings");
+    setTimeout(() => {
+      $("#pwaInstallCard")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      $("#pwaInstallCard")?.focus({ preventScroll: true });
+    }, 0);
+    return;
+  }
+
+  pwaInstallState.prompt = null;
+  prompt.prompt();
+  const choice = await prompt.userChoice;
+  pwaInstallState.installed = choice.outcome === "accepted";
+  pwaInstallState.messageKey = choice.outcome === "accepted" ? "pwa.installed" : "pwa.dismissed";
+  if (pwaInstallState.installed) rememberPwaPreference(PWA_INSTALLED_KEY);
+  else dismissPwaInstallToast();
+  syncPwaInstallUi();
+}
+
+function initializePwa() {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    pwaInstallState.prompt = event;
+    pwaInstallState.toastReady = true;
+    pwaInstallState.messageKey = "pwa.ready";
+    syncPwaInstallUi();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    pwaInstallState.installed = true;
+    pwaInstallState.prompt = null;
+    rememberPwaPreference(PWA_INSTALLED_KEY);
+    syncPwaInstallUi();
+  });
+
+  $("#pwaInstallButton")?.addEventListener("click", requestPwaInstall);
+  $("#pwaInstallToastAction")?.addEventListener("click", requestPwaInstall);
+  $("#pwaInstallToastClose")?.addEventListener("click", dismissPwaInstallToast);
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(() => {
+      pwaInstallState.messageKey = "pwa.instructions";
+      syncPwaInstallUi();
+    });
+  }
+  setTimeout(() => {
+    if (pwaInstallState.mobile && !pwaInstallState.installed) {
+      pwaInstallState.toastReady = true;
+      syncPwaInstallUi();
+    }
+  }, 1_200);
+  syncPwaInstallUi();
+}
 
 function loadPricing() {
   try { return mergeApiPricing(JSON.parse(localStorage.getItem("codex-usage-pricing")) || {}); }
@@ -705,6 +817,10 @@ function forecastDateLabel(value) {
   return new Intl.DateTimeFormat(locale(), { weekday: "short", day: "2-digit", hour: "2-digit" }).format(new Date(value));
 }
 
+function forecastDateTimeLabel(value) {
+  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function quotaForecastSamples(quota) {
   const sessions = (state.data?.sessions || []).filter((session) => !quota?.nodeId || session.nodeId === quota.nodeId);
   return sessions.flatMap((session) => session.calls.map((call) => ({
@@ -751,7 +867,7 @@ function quotaForecastSvg(forecast) {
   const observedMarker = forecast.completed ? "" : `<line class="quota-observed-line" x1="${observedX}" y1="${plot.top}" x2="${observedX}" y2="${height - plot.bottom}"></line>
     <text class="quota-observed-label" x="${Math.min(width - plot.right - 4, observedX + 7)}" y="${plot.top + 13}">${escapeHtml(t("quota.observed"))}</text>`;
   const projectedLine = projectedPoint ? `<polyline class="quota-projected-line${dangerClass}" points="${polyline(forecast.projected)}"></polyline>` : "";
-  return `<svg class="quota-forecast-svg" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="quotaForecastSvgTitle quotaForecastSvgDescription">
+  return `<svg class="quota-forecast-svg" viewBox="0 0 ${width} ${height}" role="group" aria-labelledby="quotaForecastSvgTitle quotaForecastSvgDescription">
     <title id="quotaForecastSvgTitle">${escapeHtml(t("quota.forecastAria"))}</title>
     <desc id="quotaForecastSvgDescription">${escapeHtml(description)}</desc>
     ${grid}${timeTicks}
@@ -765,7 +881,114 @@ function quotaForecastSvg(forecast) {
     <text class="quota-endpoint-label${dangerClass}" x="${x(endpoint.timestamp) - 8}" y="${Math.max(plot.top + 14, y(endpoint.percent) - 10)}" text-anchor="end">${escapeHtml(`${forecastPercent(endpoint.percent)} %`)}</text>
     <text class="quota-window-label" x="${plot.left}" y="${height - 28}" text-anchor="start">${escapeHtml(t("quota.renew"))}</text>
     <text class="quota-window-label" x="${width - plot.right}" y="${height - 28}" text-anchor="end">${escapeHtml(t("quota.reset"))}</text>
+    <g class="quota-hover-layer" aria-hidden="true">
+      <line class="quota-hover-line" x1="0" y1="${plot.top}" x2="0" y2="${height - plot.bottom}"></line>
+      <circle class="quota-hover-point" cx="0" cy="0" r="5"></circle>
+      <g class="quota-hover-tooltip">
+        <rect width="190" height="46" rx="7"></rect>
+        <text class="quota-hover-date" x="10" y="17"></text>
+        <text class="quota-hover-value" x="10" y="35"></text>
+      </g>
+    </g>
+    <rect class="quota-hover-target" x="${plot.left}" y="${plot.top}" width="${plotWidth}" height="${plotHeight}" tabindex="0" role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="${escapeHtml(t("quota.forecastAria"))}"></rect>
   </svg>`;
+}
+
+function bindQuotaForecastHover(chart, forecast) {
+  const svg = chart.querySelector(".quota-forecast-svg");
+  const target = svg?.querySelector(".quota-hover-target");
+  const layer = svg?.querySelector(".quota-hover-layer");
+  if (!svg || !target || !layer) return;
+
+  const plot = { left: 62, right: 22, top: 18, bottom: 42 };
+  const viewBox = svg.viewBox.baseVal;
+  const plotRight = viewBox.width - plot.right;
+  const plotBottom = viewBox.height - plot.bottom;
+  const startTime = Date.parse(forecast.rangeStart);
+  const endTime = Date.parse(forecast.rangeEnd);
+  const actualEndTime = Date.parse(forecast.actual.at(-1).timestamp);
+  const maximumPercent = Math.max(100, forecast.expectedFinalPercent, ...forecast.actual.map((point) => point.percent));
+  const yMaximum = Math.max(125, Math.ceil(maximumPercent * 1.08 / 25) * 25);
+  const line = layer.querySelector(".quota-hover-line");
+  const point = layer.querySelector(".quota-hover-point");
+  const tooltip = layer.querySelector(".quota-hover-tooltip");
+  const date = layer.querySelector(".quota-hover-date");
+  const value = layer.querySelector(".quota-hover-value");
+  const tooltipWidth = 190;
+  const tooltipHeight = 46;
+  let activeTime = Math.min(endTime, Math.max(startTime, Date.parse(forecast.observedAt)));
+
+  const positionAt = (timestamp) => {
+    activeTime = Math.min(endTime, Math.max(startTime, timestamp));
+    const projected = forecast.projected.length > 0 && activeTime > actualEndTime;
+    const series = projected ? forecast.projected : forecast.actual;
+    const percent = interpolateForecastPercent(series, activeTime);
+    if (!Number.isFinite(percent)) return;
+
+    const ratio = (activeTime - startTime) / (endTime - startTime);
+    const x = plot.left + ratio * (plotRight - plot.left);
+    const y = plot.top + (1 - percent / yMaximum) * (plotBottom - plot.top);
+    const safeY = Math.min(plotBottom, Math.max(plot.top, y));
+    const isOver = percent > 100;
+    const kind = projected ? "projected" : "actual";
+    const label = t(projected ? "quota.projected" : "quota.actual");
+    const dateText = forecastDateTimeLabel(activeTime);
+    const valueText = `${label} · ${forecastPercent(percent)} %`;
+    let tooltipX = x + 12;
+    if (tooltipX + tooltipWidth > plotRight) tooltipX = x - tooltipWidth - 12;
+    tooltipX = Math.min(plotRight - tooltipWidth, Math.max(plot.left, tooltipX));
+    let tooltipY = safeY - tooltipHeight - 12;
+    if (tooltipY < plot.top) tooltipY = safeY + 12;
+    tooltipY = Math.min(plotBottom - tooltipHeight, Math.max(plot.top, tooltipY));
+
+    line.setAttribute("x1", x);
+    line.setAttribute("x2", x);
+    point.setAttribute("cx", x);
+    point.setAttribute("cy", safeY);
+    point.setAttribute("class", `quota-hover-point is-${kind}${isOver ? " is-over" : ""}`);
+    tooltip.setAttribute("transform", `translate(${tooltipX} ${tooltipY})`);
+    date.textContent = dateText;
+    value.textContent = valueText;
+    value.setAttribute("class", `quota-hover-value is-${kind}${isOver ? " is-over" : ""}`);
+    layer.classList.add("is-visible");
+    layer.setAttribute("aria-hidden", "false");
+    target.setAttribute("aria-valuenow", Math.round(ratio * 100));
+    target.setAttribute("aria-valuetext", `${dateText} · ${valueText}`);
+  };
+
+  const positionFromPointer = (event) => {
+    const screenPoint = svg.createSVGPoint();
+    screenPoint.x = event.clientX;
+    screenPoint.y = event.clientY;
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return;
+    const svgPoint = screenPoint.matrixTransform(matrix.inverse());
+    const ratio = (Math.min(plotRight, Math.max(plot.left, svgPoint.x)) - plot.left) / (plotRight - plot.left);
+    positionAt(startTime + ratio * (endTime - startTime));
+  };
+
+  const hide = () => {
+    layer.classList.remove("is-visible");
+    layer.setAttribute("aria-hidden", "true");
+  };
+
+  target.addEventListener("pointerenter", positionFromPointer);
+  target.addEventListener("pointermove", positionFromPointer);
+  target.addEventListener("pointerleave", () => {
+    if (document.activeElement !== target) hide();
+  });
+  target.addEventListener("focus", () => positionAt(activeTime));
+  target.addEventListener("blur", hide);
+  target.addEventListener("keydown", (event) => {
+    const step = (endTime - startTime) / (7 * 24);
+    if (event.key === "Home") activeTime = startTime;
+    else if (event.key === "End") activeTime = endTime;
+    else if (event.key === "ArrowLeft") activeTime -= step;
+    else if (event.key === "ArrowRight") activeTime += step;
+    else return;
+    event.preventDefault();
+    positionAt(activeTime);
+  });
 }
 
 function renderQuotaForecast() {
@@ -811,6 +1034,7 @@ function renderQuotaForecast() {
   if (!current) {
     summary.innerHTML = "";
     chart.innerHTML = quotaForecastSvg(forecast);
+    bindQuotaForecastHover(chart, forecast);
     return;
   }
   const over = forecast.marginPercent < 0;
@@ -820,6 +1044,7 @@ function renderQuotaForecast() {
     <article class="forecast-stat"><span>${t("quota.emaHour")}</span><strong>${formatCredits(forecast.creditsPerHour)}</strong><small>${t("quota.forecastHint")}</small></article>
     <article class="forecast-stat"><span>${t("quota.emaDay")}</span><strong>${formatCredits(forecast.creditsPerDay)}</strong><small>${t("quota.forecastHint")}</small></article>`;
   chart.innerHTML = quotaForecastSvg(forecast);
+  bindQuotaForecastHover(chart, forecast);
 }
 
 function isSelectedProject(group) {
@@ -1329,6 +1554,7 @@ function applyTranslations() {
   $$('[data-i18n]').forEach((element) => { element.textContent = t(element.dataset.i18n); });
   $$('[data-i18n-placeholder]').forEach((element) => { element.placeholder = t(element.dataset.i18nPlaceholder); });
   $$('[data-i18n-aria]').forEach((element) => { element.setAttribute("aria-label", t(element.dataset.i18nAria)); });
+  syncPwaInstallUi();
   $("#pricingButton").title = t("action.pricing");
   $("#pricingButton").setAttribute("aria-label", t("action.pricing"));
   $("#modelFilter").setAttribute("aria-label", t("filter.model"));
@@ -1558,6 +1784,7 @@ async function initializeDashboard() {
   await loadData();
 }
 
+initializePwa();
 void initializeDashboard();
 
 function syncQuotaClock() {

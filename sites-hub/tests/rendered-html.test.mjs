@@ -50,11 +50,16 @@ test("packages the local dashboard as the hosted centralized interface", async (
   const manifest = JSON.parse(await readFile(new URL("../public/dashboard/bundle-manifest.json", import.meta.url), "utf8"));
   assert.match(html, /data-page="overview"/);
   assert.match(html, /href="\.\/styles\.css"/);
+  assert.match(html, /href="\.\/manifest\.webmanifest"/);
+  assert.match(html, /id="pwaInstallButton"/);
+  assert.match(html, /id="pwaInstallToast"/);
   assert.match(html, /href="\/admin"/);
   assert.match(app, /\/api\/capabilities/);
   assert.match(app, /\/api\/usage/);
   assert.doesNotMatch(app, /\/api\/centralized-usage/);
   assert.equal(manifest.version, 1);
-  assert.equal(Object.keys(manifest.assets).length, 11);
+  assert.equal(Object.keys(manifest.assets).length, 17);
+  assert.ok(manifest.assets["manifest.webmanifest"]);
+  assert.ok(manifest.assets["sw.js"]);
   assert.ok(manifest.assets["project-identity.js"]);
 });
