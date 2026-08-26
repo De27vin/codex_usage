@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+## 1.4.0 — 2026-08-26
+
 - Added an official Windows `CodexUsageMesh` Task Scheduler installer, single-instance PowerShell supervisor, sleep/resume recovery, non-zero-exit restart loop, UTF-8 timestamped logs, state-preserving updates, and task/process/sync/hub diagnostics.
+- Extended the observed quota curve horizontally to the current time when no newer usage sample exists, while keeping forecast projection visually distinct.
+- Added axis-aligned quota forecast hover details with keyboard navigation and localized date/value feedback.
+- Added an installable Android PWA with manifest icons, offline shell caching, and a native install prompt shown only when supported by the browser.
+- Added the public project support link to the repository and Docker documentation.
+- Updated Alpine runtime packages during Docker builds so published images include currently available operating-system security fixes.
 
 ## 1.3.0 — 2026-08-20
 
