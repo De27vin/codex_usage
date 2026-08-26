@@ -28,7 +28,7 @@ The command:
 2. refuses to continue if another matching supervisor or Node agent is still running;
 3. copies the legacy state once to `%LOCALAPPDATA%\CodexUsageMesh\state\mesh-agent.json` when the installed state does not exist;
 4. never overwrites an installed state during later runs;
-5. generates `%LOCALAPPDATA%\CodexUsageMesh\CodexUsageMesh.Supervisor.ps1` without an association code or infrastructure credential;
+5. generates `.cache\windows-agent\CodexUsageMesh.Supervisor.ps1` in the repository without an association code or infrastructure credential, avoiding Windows policies that block scheduled scripts from `AppData`;
 6. registers and starts the current user's task.
 
 The original state file is retained. After supervision is installed, do not start a second `npm run start:agent` process from the repository. The scheduled task is the owner of the reporting process.

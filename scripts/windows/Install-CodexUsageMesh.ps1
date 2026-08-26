@@ -61,7 +61,7 @@ function Resolve-Configuration {
         StatePath = $resolvedState
         LegacyStatePath = Join-Path $resolvedRepo '.cache\mesh-agent.json'
         NodePath = $resolvedNode
-        LauncherPath = Join-Path $resolvedInstall 'CodexUsageMesh.Supervisor.ps1'
+        LauncherPath = Join-Path $resolvedRepo ".cache\windows-agent\$TaskName.Supervisor.ps1"
         LogPath = Join-Path $resolvedInstall 'logs\supervisor.log'
         AgentPath = Join-Path $resolvedRepo 'agent.mjs'
         GeneratorPath = Join-Path $resolvedRepo 'scripts\generate-windows-agent-files.mjs'

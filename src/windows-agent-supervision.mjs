@@ -71,7 +71,7 @@ $AgentPath = Join-Path $RepoRoot 'agent.mjs'
 $MutexName = ${values.mutexName}
 $RestartDelaySeconds = ${values.delay}
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[Console]::OutputEncoding = $Utf8NoBom
+try { [Console]::OutputEncoding = $Utf8NoBom } catch {}
 $OutputEncoding = $Utf8NoBom
 
 function Write-SupervisorLog {
@@ -82,9 +82,10 @@ function Write-SupervisorLog {
     [System.IO.File]::AppendAllText($LogPath, "[$timestamp] $Message" + [Environment]::NewLine, $Utf8NoBom)
 }
 
-$mutex = New-Object System.Threading.Mutex($false, $MutexName)
+$mutex = $null
 $ownsMutex = $false
 try {
+    $mutex = New-Object System.Threading.Mutex($false, $MutexName)
     try {
         $ownsMutex = $mutex.WaitOne(0, $false)
     } catch [System.Threading.AbandonedMutexException] {
@@ -146,8 +147,8 @@ try {
     Write-SupervisorLog ("supervisor failed: " + $_.Exception.Message)
     exit 1
 } finally {
-    if ($ownsMutex) { $mutex.ReleaseMutex() }
-    $mutex.Dispose()
+    if ($ownsMutex -and $mutex) { $mutex.ReleaseMutex() }
+    if ($mutex) { $mutex.Dispose() }
 }
 `;
 }

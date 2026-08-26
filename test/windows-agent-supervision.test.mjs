@@ -23,6 +23,7 @@ test("Windows supervisor generation embeds safe paths and restart guarantees wit
 
   assert.match(script, /O''Brien/);
   assert.match(script, /System\.Text\.UTF8Encoding\(\$false\)/);
+  assert.match(script, /try \{ \[Console\]::OutputEncoding = \$Utf8NoBom \} catch \{\}/);
   assert.match(script, /exitCode=\$exitCode/);
   assert.match(script, /restartAttempt=\$restartAttempt/);
   assert.match(script, /Start-Sleep -Seconds \$RestartDelaySeconds/);
