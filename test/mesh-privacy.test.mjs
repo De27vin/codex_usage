@@ -6,6 +6,7 @@ const usage = {
   analyzerVersion: 3,
   generatedAt: "2026-08-14T10:00:00.000Z",
   source: { mode: "local", sessionsAvailable: true },
+  fiveHourQuota: { usedPercent: 10, remainingPercent: 90, windowMinutes: 300, resetsAt: "2026-08-14T12:00:00.000Z", secret: "hidden" },
   weeklyQuota: null,
   sessions: [{
     id: "session-private",
@@ -27,6 +28,8 @@ test("default mesh privacy removes titles, usernames, and full project paths", (
   assert.equal(sanitized.sessions[0].projectName, "SecretProject");
   assert.equal(sanitized.sessions[0].projectGitHubUrl, "https://github.com/example/secret-project");
   assert.match(sanitized.sessions[0].title, /^Conversation [a-f0-9]{8}$/);
+  assert.equal(sanitized.shortQuota.remainingPercent, 90);
+  assert.equal(sanitized.shortQuota.secret, undefined);
 });
 
 test("basename and title disclosure require explicit choices", () => {

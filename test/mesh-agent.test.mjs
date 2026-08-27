@@ -12,6 +12,7 @@ function usageData() {
     analyzerVersion: 3,
     generatedAt: new Date().toISOString(),
     source: { mode: "local", sessionsAvailable: true, archivedSessionsAvailable: false, sessionIndexAvailable: true },
+    fiveHourQuota: { usedPercent: 15, remainingPercent: 85, windowMinutes: 300, resetsAt: new Date(Date.now() + 60_000).toISOString(), observedAt: new Date().toISOString(), planType: "pro" },
     weeklyQuota: { usedPercent: 20, remainingPercent: 80, windowMinutes: 10080, resetsAt: null, resetsAvailable: null, observedAt: new Date().toISOString(), planType: "pro" },
     weeklyQuotaHistory: [],
     sessions: [{
@@ -52,6 +53,7 @@ test("agent enrolls, signs minimized snapshots, and only resends changes", async
   assert.ok(requests.every((request) => request.headers["content-type"] === "application/json"));
   assert.ok(requests.every((request) => !Object.keys(request.headers).some((name) => name.toLowerCase() === "oai-sites-authorization")));
   const aggregated = store.aggregate();
+  assert.equal(aggregated.fiveHourQuota.remainingPercent, 85);
   assert.equal(aggregated.sessions.length, 1);
   assert.match(aggregated.sessions[0].title, /^Conversation /);
   assert.match(aggregated.sessions[0].cwd, /^project-/);

@@ -14,6 +14,7 @@ test("public usage exposes only explicitly allowed fields", () => {
       sessionIndexAvailable: true,
       sessionsPath: "C:\\Users\\private\\.codex\\sessions",
     },
+    fiveHourQuota: { usedPercent: 15, remainingPercent: 85, windowMinutes: 300, resetsAt: "2026-08-13T13:00:00.000Z", observedAt: "2026-08-13T12:00:00.000Z", secret: "hidden-short" },
     weeklyQuota: { usedPercent: 24, remainingPercent: 76, windowMinutes: 10080, resetsAt: "2026-08-20T12:00:00.000Z", resetsAvailable: null, observedAt: "2026-08-13T12:00:00.000Z", planType: "pro", secret: "hidden" },
     weeklyQuotaHistory: [{ startsAt: "2026-08-13T12:00:00.000Z", endsAt: "2026-08-14T12:00:00.000Z", resetsAt: "2026-08-20T12:00:00.000Z", observedAt: "2026-08-14T08:00:00.000Z", peakObservedAt: "2026-08-14T08:00:00.000Z", usedPercent: 24, peakUsedPercent: 24, remainingPercent: 76, windowMinutes: 10080, planType: "pro", planTypes: ["plus", "pro"], secret: "hidden" }],
     nodes: [{ id: "node-1", alias: "PC Bureau", publicKey: "must-not-leak", fingerprint: "private", privacy: { projectMode: "hash", includeTitles: false } }],
@@ -41,6 +42,9 @@ test("public usage exposes only explicitly allowed fields", () => {
   assert.equal(publicData.sessions[0].projectName, "repo");
   assert.equal(publicData.sessions[0].projectGitHubUrl, "https://github.com/example/repo");
   assert.equal(publicData.errorCount, 1);
+  assert.equal(publicData.fiveHourQuota.remainingPercent, 85);
+  assert.equal(publicData.fiveHourQuota.windowMinutes, 300);
+  assert.equal(publicData.fiveHourQuota.secret, undefined);
   assert.equal(publicData.weeklyQuota.remainingPercent, 76);
   assert.equal(publicData.weeklyQuota.secret, undefined);
   assert.equal(publicData.weeklyQuotaHistory[0].peakUsedPercent, 24);

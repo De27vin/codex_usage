@@ -211,6 +211,19 @@ const PAGE_I18N = {
 };
 for (const [language, messages] of Object.entries(PAGE_I18N)) Object.assign(I18N[language], messages);
 
+const QUOTA_HEADER_I18N = {
+  fr: { "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 heures", "quota.fiveHourShort": "5h", "quota.weekly": "Hebdomadaire", "quota.weeklyShort": "Hebdo" },
+  en: { "quota.headerLabel": "Codex quotas", "quota.fiveHour": "5 hours", "quota.fiveHourShort": "5h", "quota.weekly": "Weekly", "quota.weeklyShort": "Weekly" },
+  de: { "quota.headerLabel": "Codex-Kontingente", "quota.fiveHour": "5 Stunden", "quota.fiveHourShort": "5h", "quota.weekly": "Wöchentlich", "quota.weeklyShort": "Wöchentlich" },
+  es: { "quota.headerLabel": "Cuotas de Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  it: { "quota.headerLabel": "Quote Codex", "quota.fiveHour": "5 ore", "quota.fiveHourShort": "5h", "quota.weekly": "Settimanale", "quota.weeklyShort": "Settimanale" },
+  pt: { "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  ja: { "quota.headerLabel": "Codex クォータ", "quota.fiveHour": "5時間", "quota.fiveHourShort": "5h", "quota.weekly": "週間", "quota.weeklyShort": "週間" },
+  ru: { "quota.headerLabel": "Квоты Codex", "quota.fiveHour": "5 часов", "quota.fiveHourShort": "5h", "quota.weekly": "Недельная", "quota.weeklyShort": "Недельная" },
+  zh: { "quota.headerLabel": "Codex 额度", "quota.fiveHour": "5 小时", "quota.fiveHourShort": "5h", "quota.weekly": "每周", "quota.weeklyShort": "每周" },
+};
+for (const [language, messages] of Object.entries(QUOTA_HEADER_I18N)) Object.assign(I18N[language], messages);
+
 const PWA_I18N = {
   fr: { "pwa.eyebrow": "APPLICATION", "pwa.title": "Installer sur ce téléphone", "pwa.copy": "Ajoutez Codex Usage à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.install": "Installer l’application", "pwa.ready": "L’application est prête à être installée.", "pwa.instructions": "Sur Android, ouvrez le menu du navigateur puis choisissez Installer l’application ou Ajouter à l’écran d’accueil si le bouton ne s’affiche pas.", "pwa.installed": "Codex Usage est installée sur cet appareil.", "pwa.dismissed": "L’installation a été annulée. Vous pouvez réessayer depuis le menu du navigateur.", "pwa.toastTitle": "Installer Codex Usage", "pwa.toastCopy": "Ajoutez le tableau de bord à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.howTo": "Voir comment", "pwa.toastClose": "Masquer la proposition" },
   de: { "pwa.eyebrow": "ANWENDUNG", "pwa.title": "Auf diesem Telefon installieren", "pwa.copy": "Fügen Sie Codex Usage zum Startbildschirm hinzu und öffnen Sie es wie eine App.", "pwa.install": "App installieren", "pwa.ready": "Die App kann jetzt installiert werden.", "pwa.instructions": "Öffnen Sie unter Android das Browsermenü und wählen Sie App installieren oder Zum Startbildschirm hinzufügen, falls die Schaltfläche nicht erscheint.", "pwa.installed": "Codex Usage ist auf diesem Gerät installiert.", "pwa.dismissed": "Die Installation wurde abgebrochen. Sie können es über das Browsermenü erneut versuchen.", "pwa.toastTitle": "Codex Usage installieren", "pwa.toastCopy": "Fügen Sie das Dashboard zum Startbildschirm hinzu und öffnen Sie es wie eine App.", "pwa.howTo": "Anleitung", "pwa.toastClose": "Installationshinweis ausblenden" },
@@ -754,27 +767,41 @@ function formatQuotaCountdown(resetAt, now = new Date()) {
 }
 
 function renderQuotaNav() {
-  const quota = quotaPeriods()[0] || null;
-  const available = quota && !quota.theoretical && Number.isFinite(quota.remainingPercent);
-  const remainingText = quota?.theoretical
+  const weeklyQuota = quotaPeriods()[0] || null;
+  const available = weeklyQuota && !weeklyQuota.theoretical && Number.isFinite(weeklyQuota.remainingPercent);
+  const remainingText = weeklyQuota?.theoretical
     ? t("quota.awaitingObservation")
     : available
-      ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(quota.remainingPercent) })
+      ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(weeklyQuota.remainingPercent) })
       : "—";
-  const resetAt = quota ? currentQuotaResetAt() : null;
+  const resetAt = weeklyQuota ? currentQuotaResetAt() : null;
   const resetText = resetAt ? resetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "";
   const countdownText = resetAt ? formatQuotaCountdown(resetAt) : "";
   $$("[data-quota-nav-remaining]").forEach((element) => { element.textContent = remainingText; });
   $$("[data-quota-nav-reset]").forEach((element) => { element.textContent = resetText; });
   $$("[data-quota-nav-countdown]").forEach((element) => { element.textContent = countdownText; });
+  $$("[data-weekly-header-remaining]").forEach((element) => { element.textContent = remainingText; });
+  $$("[data-weekly-header-reset]").forEach((element) => { element.textContent = resetText || "—"; });
+  $$("[data-weekly-header-countdown]").forEach((element) => { element.textContent = countdownText || "—"; });
   $$('[data-nav-section="quota"]').forEach((link) => {
     const parts = [t("nav.quota")];
-    if (quota) parts.push(remainingText);
+    if (weeklyQuota) parts.push(remainingText);
     if (resetText) parts.push(resetText);
     if (countdownText) parts.push(countdownText);
     link.setAttribute("aria-label", parts.join(", "));
   });
-  state.renderedQuotaReset = quota?.resetsAt || null;
+  const fiveHourQuota = state.data?.fiveHourQuota || null;
+  const fiveHourRemaining = Number.isFinite(fiveHourQuota?.remainingPercent)
+    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(fiveHourQuota.remainingPercent) })
+    : "—";
+  const fiveHourResetAt = Number.isFinite(Date.parse(fiveHourQuota?.resetsAt)) ? new Date(fiveHourQuota.resetsAt) : null;
+  const fiveHourResetText = fiveHourResetAt ? fiveHourResetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "—";
+  const fiveHourCountdown = fiveHourResetAt ? formatQuotaCountdown(fiveHourResetAt) : "—";
+  $$("[data-five-hour-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
+  $$("[data-five-hour-mobile-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
+  $$("[data-five-hour-reset]").forEach((element) => { element.textContent = fiveHourResetText; });
+  $$("[data-five-hour-countdown]").forEach((element) => { element.textContent = fiveHourCountdown; });
+  state.renderedQuotaReset = weeklyQuota?.resetsAt || null;
 }
 
 function renderQuotaPage() {

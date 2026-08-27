@@ -200,6 +200,7 @@ export class MeshAgent {
         analyzerVersion: sanitized.analyzerVersion,
         generatedAt: sanitized.generatedAt,
         privacy: sanitized.privacy,
+        shortQuota: sanitized.shortQuota,
         quota: sanitized.quota,
         quotaHistory: sanitized.quotaHistory,
         upserts: batch.upserts,
