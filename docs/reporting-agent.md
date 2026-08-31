@@ -149,6 +149,8 @@ For Docker, rebuild or pull the intended image, recreate the container while ret
 
 Keep agents and the central hub on compatible Mesh protocol versions during schema or protocol upgrades.
 
+For five-hour quota support, new agents remain compatible with older hubs: after a legacy payload-shape rejection, they retry the same batch without the optional short quota, using a fresh signed sequence. Sessions and weekly quotas still synchronize. Five-hour reporting resumes automatically after the hub is upgraded; authentication and other validation failures are never bypassed.
+
 ## Revoke, remove, or replace a machine
 
 The Windows uninstall command removes only the local scheduled task and generated launcher. It deliberately retains local state and never revokes this or any other machine; see [Uninstall local supervision](windows-agent.md#uninstall-local-supervision).

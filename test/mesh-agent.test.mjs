@@ -12,6 +12,7 @@ function usageData() {
     analyzerVersion: 3,
     generatedAt: new Date().toISOString(),
     source: { mode: "local", sessionsAvailable: true, archivedSessionsAvailable: false, sessionIndexAvailable: true },
+    fiveHourQuota: { usedPercent: 15, remainingPercent: 85, windowMinutes: 300, resetsAt: new Date(Date.now() + 60_000).toISOString(), observedAt: new Date().toISOString(), planType: "pro" },
     weeklyQuota: { usedPercent: 20, remainingPercent: 80, windowMinutes: 10080, resetsAt: null, resetsAvailable: null, observedAt: new Date().toISOString(), planType: "pro" },
     weeklyQuotaHistory: [],
     sessions: [{
@@ -52,6 +53,7 @@ test("agent enrolls, signs minimized snapshots, and only resends changes", async
   assert.ok(requests.every((request) => request.headers["content-type"] === "application/json"));
   assert.ok(requests.every((request) => !Object.keys(request.headers).some((name) => name.toLowerCase() === "oai-sites-authorization")));
   const aggregated = store.aggregate();
+  assert.equal(aggregated.fiveHourQuota.remainingPercent, 85);
   assert.equal(aggregated.sessions.length, 1);
   assert.match(aggregated.sessions[0].title, /^Conversation /);
   assert.match(aggregated.sessions[0].cwd, /^project-/);
@@ -75,6 +77,106 @@ test("agent uses the operating-system hostname when no alias override is configu
   await agent.load();
   assert.equal(agent.status().alias, "WORKSTATION-42");
   assert.equal(agent.state.alias, "WORKSTATION-42");
+});
+
+test("agent preserves batched sync with legacy hubs and detects a later hub upgrade", async (t) => {
+  for (const code of ["mesh_invalid", undefined]) {
+    for (const hasQuota of [true, false]) {
+      await t.test(`${code || "Sites"}, quota ${hasQuota ? "present" : "absent"}`, async () => {
+        const directory = await mkdtemp(path.join(os.tmpdir(), "codex-mesh-legacy-"));
+        const store = new MeshHubStore();
+        const enrollment = await store.createEnrollment();
+        let legacy = true;
+        const requests = [];
+        const fetchImpl = async (url, options) => {
+          if (url.endsWith("/enroll")) return Response.json(await store.enroll(JSON.parse(options.body)));
+          const envelope = JSON.parse(options.body);
+          requests.push(envelope);
+          if (legacy && Object.hasOwn(envelope.payload, "shortQuota")) {
+            return Response.json({ error: "Charge utile Mesh invalide.", code }, { status: 400 });
+          }
+          return Response.json(await store.ingest(envelope));
+        };
+        const options = { hubUrl: "https://mesh.example", alias: "PC", statePath: path.join(directory, "agent.json"), enrollmentCode: enrollment.code, batchSize: 1, fetchImpl, logger: { log() {} } };
+        const agent = new MeshAgent(options);
+        const data = usageData();
+        if (!hasQuota) data.fiveHourQuota = null;
+        data.sessions.push({ ...data.sessions[0], id: "session-2" });
+        const result = await agent.sync(data);
+        assert.equal(result.accepted, 2);
+        assert.equal(result.batches, 2);
+        assert.deepEqual(requests.map((request) => request.sequence), [1, 2, 3]);
+        assert.ok(requests.slice(1).every((request) => !Object.hasOwn(request.payload, "shortQuota")));
+        const { shortQuota, ...legacyPayload } = requests[0].payload;
+        assert.deepEqual(requests[1].payload, legacyPayload);
+        assert.notEqual(requests[0].signature, requests[1].signature);
+        assert.equal(store.aggregate().sessions.length, 2);
+        assert.equal(store.aggregate().weeklyQuota.remainingPercent, 80);
+        assert.equal(Object.keys(agent.state.sessionHashes).length, 2);
+
+        // Upgrading the hub must enable the quota without re-enrollment.
+        legacy = false;
+        const restarted = new MeshAgent({ ...options, enrollmentCode: null });
+        const next = await restarted.sync(data);
+        assert.equal(next.accepted, 0);
+        assert.equal(requests.length, 4);
+        assert.equal(requests[3].sequence, 4);
+        assert.deepEqual(requests[3].payload.shortQuota, shortQuota);
+        assert.equal(store.aggregate().fiveHourQuota?.remainingPercent ?? null, hasQuota ? 85 : null);
+        assert.equal(restarted.state.nodeId, agent.state.nodeId);
+      });
+    }
+  }
+});
+
+test("legacy fallback never retries authentication, quota validation, transport, or server failures", async (t) => {
+  const failures = [
+    ...[401, 403, 409, 413, 503].map((status) => ({ status, error: "Charge utile Mesh invalide.", code: "mesh_invalid" })),
+    { status: 400, error: "Quota court Mesh invalide." },
+    { status: 400, error: "Une session Mesh est invalide." },
+    { status: 400, error: "Charge utile Mesh invalide.", code: "another_error" },
+    { error: "network unavailable" },
+  ];
+  for (const failure of failures) {
+    await t.test(`${failure.status || "network"}: ${failure.code || failure.error}`, async () => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), "codex-mesh-no-fallback-"));
+      let requests = 0;
+      const agent = new MeshAgent({
+        hubUrl: "https://mesh.example", alias: "PC", statePath: path.join(directory, "agent.json"),
+        fetchImpl: async () => {
+          requests++;
+          if (!failure.status) throw new Error(failure.error);
+          return Response.json({ error: failure.error, code: failure.code }, { status: failure.status });
+        },
+      });
+      await agent.load();
+      agent.state.nodeId = "node_test";
+      await assert.rejects(() => agent.sync(usageData()), (error) => error.message === failure.error);
+      assert.equal(requests, 1);
+      assert.deepEqual(agent.state.sessionHashes, {});
+      assert.equal(agent.state.lastSyncAt, null);
+      assert.equal(JSON.parse(await readFile(agent.statePath, "utf8")).sequence, 1);
+    });
+  }
+});
+
+test("an unsuccessful legacy retry stops without acknowledging sessions", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-mesh-retry-failure-"));
+  const requests = [];
+  const agent = new MeshAgent({
+    hubUrl: "https://mesh.example", alias: "PC", statePath: path.join(directory, "agent.json"),
+    fetchImpl: async (_url, options) => {
+      requests.push(JSON.parse(options.body));
+      return Response.json({ error: "Charge utile Mesh invalide." }, { status: 400 });
+    },
+  });
+  await agent.load();
+  agent.state.nodeId = "node_test";
+  await assert.rejects(() => agent.sync(usageData()), /Charge utile Mesh invalide/);
+  assert.deepEqual(requests.map((request) => request.sequence), [1, 2]);
+  assert.equal(Object.hasOwn(requests[1].payload, "shortQuota"), false);
+  assert.deepEqual(agent.state.sessionHashes, {});
+  assert.equal(agent.state.lastSyncAt, null);
 });
 
 test("agent never reuses a reserved sequence after an interrupted request", async () => {

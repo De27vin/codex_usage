@@ -42,6 +42,7 @@ test("hub enrolls once, verifies signed updates, blocks replay, and aggregates n
   const payload = {
     kind: "sync", snapshotVersion: 1, analyzerVersion: 3,
     generatedAt: new Date(now).toISOString(), privacy: { projectMode: "hash", includeTitles: false },
+    shortQuota: { usedPercent: 10, remainingPercent: 90, windowMinutes: 300, resetsAt: "2026-08-13T15:00:00.000Z", observedAt: new Date(now).toISOString() },
     quota: { remainingPercent: 80, observedAt: new Date(now).toISOString() },
     quotaHistory: [{ usedPercent: 20, remainingPercent: 80, peakUsedPercent: 20, windowMinutes: 10080, startsAt: "2026-08-13T10:00:00.000Z", resetsAt: "2026-08-20T10:00:00.000Z", resetsAvailable: null, observedAt: new Date(now).toISOString(), firstObservedAt: new Date(now).toISOString(), peakObservedAt: new Date(now).toISOString(), planType: "pro", planTypes: ["pro"] }],
     upserts: [session()], removals: [],
@@ -54,6 +55,7 @@ test("hub enrolls once, verifies signed updates, blocks replay, and aggregates n
   const aggregate = store.aggregate();
   assert.equal(aggregate.nodes[0].alias, "PC Bureau");
   assert.equal(aggregate.sessions[0].nodeAlias, "PC Bureau");
+  assert.equal(aggregate.fiveHourQuota.remainingPercent, 90);
   assert.equal(aggregate.weeklyQuota.remainingPercent, 80);
   assert.equal(aggregate.weeklyQuota.nodeId, node.nodeId);
   assert.equal(aggregate.weeklyQuotaHistory[0].planType, "pro");

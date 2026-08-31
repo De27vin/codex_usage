@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { addUsage, analyzeCodexUsage, inspectCodexSource, normalizeGitHubRepositoryUrl, normalizeUsage, normalizeWeeklyQuota, parseSessionFile, resolveCodexSource, usageFingerprint } from "../src/analyzer.mjs";
+import { addUsage, analyzeCodexUsage, inspectCodexSource, normalizeFiveHourQuota, normalizeGitHubRepositoryUrl, normalizeUsage, normalizeWeeklyQuota, parseSessionFile, resolveCodexSource, usageFingerprint } from "../src/analyzer.mjs";
 import { mergeWeeklyQuotaObservations } from "../src/quota-history.mjs";
 
 test("normalizes and adds token usage", () => {
@@ -12,18 +12,24 @@ test("normalizes and adds token usage", () => {
 });
 
 test("normalizes the weekly Codex quota without inventing reset availability", () => {
-  const quota = normalizeWeeklyQuota({
+  const raw = {
     primary: { used_percent: 12, window_minutes: 300, resets_at: 1783626099 },
     secondary: { used_percent: 36, window_minutes: 10080, resets_at: 1783769144 },
     individual_limit: { used_percent: 90, window_minutes: 43200, resets_at: 1786361144 },
     plan_type: "pro",
-  }, "2026-07-09T22:00:00.000Z");
+  };
+  const quota = normalizeWeeklyQuota(raw, "2026-07-09T22:00:00.000Z");
   assert.equal(quota.usedPercent, 36);
   assert.equal(quota.remainingPercent, 64);
   assert.equal(quota.windowMinutes, 10080);
   assert.equal(quota.resetsAt, "2026-07-11T11:25:44.000Z");
   assert.equal(quota.resetsAvailable, null);
   assert.equal(quota.planType, "pro");
+  const fiveHourQuota = normalizeFiveHourQuota(raw, "2026-07-09T22:00:00.000Z");
+  assert.equal(fiveHourQuota.usedPercent, 12);
+  assert.equal(fiveHourQuota.remainingPercent, 88);
+  assert.equal(fiveHourQuota.windowMinutes, 300);
+  assert.equal(fiveHourQuota.resetsAt, "2026-07-09T19:41:39.000Z");
 });
 
 test("merges nearby reset observations, retains plan transitions, and ignores unused drifting windows", () => {
@@ -54,7 +60,7 @@ test("parses turns, model calls and duration without message contents", async ()
     { timestamp: "2026-07-10T08:00:01.000Z", type: "turn_context", payload: { turn_id: "turn-1", model: "gpt-test", effort: "medium" } },
     { timestamp: "2026-07-10T08:00:01.000Z", type: "event_msg", payload: { type: "task_started", turn_id: "turn-1", started_at: "2026-07-10T08:00:01.000Z" } },
     { timestamp: "2026-07-10T08:00:02.000Z", type: "event_msg", payload: { type: "user_message", message: "secret" } },
-    { timestamp: "2026-07-10T08:00:03.000Z", type: "event_msg", payload: { type: "token_count", info: { last_token_usage: { input_tokens: 100, cached_input_tokens: 50, output_tokens: 10, total_tokens: 110 } }, rate_limits: { primary: { used_percent: 21, window_minutes: 10080, resets_at: 1783769144 }, resets_remaining: 2, plan_type: "pro" } } },
+    { timestamp: "2026-07-10T08:00:03.000Z", type: "event_msg", payload: { type: "token_count", info: { last_token_usage: { input_tokens: 100, cached_input_tokens: 50, output_tokens: 10, total_tokens: 110 } }, rate_limits: { primary: { used_percent: 15, window_minutes: 300, resets_at: 1783672200 }, secondary: { used_percent: 21, window_minutes: 10080, resets_at: 1783769144 }, resets_remaining: 2, plan_type: "pro" } } },
     { timestamp: "2026-07-10T08:00:05.000Z", type: "event_msg", payload: { type: "task_complete", turn_id: "turn-1" } },
   ];
   await writeFile(file, rows.map(JSON.stringify).join("\n"));
@@ -69,6 +75,8 @@ test("parses turns, model calls and duration without message contents", async ()
   assert.equal(result.calls[0].serviceTier, "priority");
   assert.equal(result.durationMs, 4000);
   assert.equal(result.usage.cachedInputTokens, 50);
+  assert.equal(result.fiveHourQuota.remainingPercent, 85);
+  assert.equal(result.fiveHourQuota.windowMinutes, 300);
   assert.equal(result.weeklyQuota.remainingPercent, 79);
   assert.equal(result.weeklyQuota.resetsAvailable, 2);
   assert.equal(result.weeklyQuotaHistory.length, 1);
@@ -112,7 +120,7 @@ test("reuses persisted per-file analysis when a session has not changed", async 
 
   const first = await analyzeCodexUsage({ codexHome });
   const second = await analyzeCodexUsage({ codexHome, previousData: first });
-  assert.equal(first.analyzerVersion, 6);
+  assert.equal(first.analyzerVersion, 7);
   assert.equal(second.sessions[0], first.sessions[0]);
   assert.equal(second.sessions[0].fileSize > 0, true);
   assert.equal(Number.isFinite(second.sessions[0].fileModifiedAtMs), true);
@@ -147,7 +155,7 @@ test("supports least-privilege scoped sources without a Codex home mount", async
   const result = await analyzeCodexUsage(options);
   assert.equal(result.sessions[0].title, "Scoped source");
   assert.equal(result.source.mode, "scoped");
-  assert.match(await usageFingerprint(options), /^6:1:/);
+  assert.match(await usageFingerprint(options), /^7:1:/);
 });
 
 test("fingerprints include the analyzer version so persisted snapshots migrate after upgrades", async () => {
@@ -158,7 +166,7 @@ test("fingerprints include the analyzer version so persisted snapshots migrate a
   await mkdir(archivedSessionsPath);
   await writeFile(path.join(sessionsPath, "session.jsonl"), `${JSON.stringify({ type: "session_meta", payload: { id: "versioned" } })}\n`);
   const fingerprint = await usageFingerprint({ sessionsPath, archivedSessionsPath, sessionIndexPath: path.join(root, "missing-index.jsonl") });
-  assert.match(fingerprint, /^6:/);
+  assert.match(fingerprint, /^7:/);
 });
 
 test("rejects a source with no readable session directory", async () => {

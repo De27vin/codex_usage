@@ -95,12 +95,14 @@ test("quota navigation arrows do not depend on mobile font glyph support", () =>
   assert.match(styles, /\.quota-history-button:disabled\s*\{[^}]*opacity:\s*\.58;/);
 });
 
-test("sidebar quota shows the reset date, live countdown, and clock-driven rollover", () => {
-  assert.equal((markup.match(/data-quota-nav-countdown/g) || []).length, 2);
+test("header quotas show exact reset dates, live countdowns, and clock-driven rollover", () => {
+  assert.equal((markup.match(/data-weekly-header-countdown/g) || []).length, 1);
+  assert.equal((markup.match(/data-five-hour-countdown/g) || []).length, 1);
+  assert.equal((markup.match(/data-five-hour-mobile-remaining/g) || []).length, 1);
   assert.match(app, /toLocaleString\(locale\(\), \{ dateStyle: "medium", timeStyle: "short" \}\)/);
   assert.match(app, /function quotaPeriods\([^)]*\)[\s\S]*theoreticalWeeklyQuotaPeriod/);
   assert.match(app, /setInterval\(\(\) => \{\s*if \(!document\.hidden\) syncQuotaClock\(\);\s*\}, 1_000\);/);
-  assert.match(styles, /\[data-quota-nav-countdown\][^}]*font-variant-numeric:\s*tabular-nums;/s);
+  assert.match(styles, /\.header-quota\s*\{[^}]*font-variant-numeric:\s*tabular-nums;/s);
 });
 
 test("forecast chart hover exposes the date and interpolated series value", () => {
