@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   generateWindowsSupervisor,
   preserveExistingAgentState,
@@ -110,6 +111,7 @@ process.exit(count === 1 ? 1 : 0);
   const result = spawnSync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", launcherPath], {
     encoding: "utf8",
     timeout: 10_000,
+    windowsHide: true,
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, result.stderr);
@@ -120,4 +122,101 @@ process.exit(count === 1 ? 1 : 0);
   assert.match(log, /agent restart scheduled; restartAttempt=1; nextLaunchAttempt=2; delaySeconds=1/);
   assert.match(log, /agent launch; attempt=2/);
   assert.match(log, /agent exited; exitCode=0/);
+});
+
+test("Windows task hides its console and recovers indefinitely without overlapping agents", { skip: process.platform !== "win32" }, async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-windows-task-"));
+  const probePath = path.join(directory, "inspect-task.ps1");
+  const installerPath = new URL("../scripts/windows/Install-CodexUsageMesh.ps1", import.meta.url);
+  const literal = (value) => `'${value.replaceAll("'", "''")}'`;
+  await writeFile(probePath, `
+. ${literal(fileURLToPath(installerPath))} -RepoRoot ${literal(directory)}
+$configuration = Resolve-Configuration
+[xml]$task = New-TaskXml $configuration
+[pscustomobject]@{
+  Arguments = [string]$task.Task.Actions.Exec.Arguments
+  LogonUser = [string]$task.Task.Triggers.LogonTrigger.UserId
+  ResumeEvent = [string]$task.Task.Triggers.EventTrigger.Subscription
+  RecoveryInterval = [string]$task.Task.Triggers.TimeTrigger.Repetition.Interval
+  DurationElementCount = $task.Task.Triggers.TimeTrigger.Repetition.GetElementsByTagName('Duration').Count
+  StopAtDurationEnd = [string]$task.Task.Triggers.TimeTrigger.Repetition.StopAtDurationEnd
+  RecoveryEnabled = [string]$task.Task.Triggers.TimeTrigger.Enabled
+  RecoveryStart = [string]$task.Task.Triggers.TimeTrigger.StartBoundary
+  MultipleInstances = [string]$task.Task.Settings.MultipleInstancesPolicy
+  ExecutionTimeLimit = [string]$task.Task.Settings.ExecutionTimeLimit
+  LogPath = $configuration.LogPath
+  StatePath = $configuration.StatePath
+} | ConvertTo-Json -Compress
+`, "utf8");
+  const powershell = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const before = Date.now();
+  const result = spawnSync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", probePath], {
+    encoding: "utf8", timeout: 10_000, windowsHide: true,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr);
+  const task = JSON.parse(result.stdout);
+  assert.match(task.Arguments, /-WindowStyle Hidden\b/);
+  assert.match(task.LogonUser, /^S-1-/);
+  assert.match(task.ResumeEvent, /Microsoft-Windows-Power-Troubleshooter/);
+  assert.equal(task.RecoveryInterval, "PT1M");
+  assert.equal(task.DurationElementCount, 0);
+  assert.equal(task.StopAtDurationEnd, "false");
+  assert.equal(task.RecoveryEnabled, "true");
+  assert.ok(Date.parse(task.RecoveryStart) >= before + 55_000);
+  assert.ok(Date.parse(task.RecoveryStart) <= Date.now() + 61_000);
+  assert.equal(task.MultipleInstances, "IgnoreNew");
+  assert.equal(task.ExecutionTimeLimit, "PT0S");
+  assert.equal(task.LogPath, path.join(directory, ".cache", "windows-agent", "CodexUsageMesh.Supervisor.log"));
+  assert.equal(task.StatePath, path.join(process.env.LOCALAPPDATA, "CodexUsageMesh", "mesh-agent.windows.json"));
+});
+
+test("Windows recovery waits for a surviving child and does not treat stderr as an agent crash", { skip: process.platform !== "win32", timeout: 20_000 }, async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-windows-orphan-"));
+  const statePath = path.join(directory, "mesh-agent.json");
+  const logPath = path.join(directory, "supervisor.log");
+  const launcherPath = path.join(directory, "supervisor.ps1");
+  const agentPath = path.join(directory, "agent.mjs");
+  const launchesPath = path.join(directory, "launches.jsonl");
+  await writeFile(statePath, JSON.stringify({ nodeId: "test", privateKey: "test", hubUrl: "https://mesh.example", alias: "Test" }));
+  await writeFile(agentPath, `
+import { appendFileSync, readFileSync } from "node:fs";
+const file = ${JSON.stringify(launchesPath)};
+appendFileSync(file, JSON.stringify({ pid: process.pid }) + "\\n");
+const count = readFileSync(file, "utf8").trim().split("\\n").length;
+if (count === 1) setInterval(() => {}, 1000);
+else { console.error("expected stderr from agent"); process.exit(0); }
+`);
+  await writeWindowsSupervisor(launcherPath, { repoRoot: directory, statePath, nodePath: process.execPath, logPath,
+    taskName: `CodexUsageMesh-Orphan-${process.pid}`, restartDelaySeconds: 1 });
+  async function waitFor(check) {
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      if (await check()) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.fail("Expected supervisor transition did not occur");
+  }
+  const readLog = () => readFile(logPath, "utf8").catch(() => "");
+  const readLaunches = async () => (await readFile(launchesPath, "utf8").catch(() => "")).trim().split("\n").filter(Boolean).map(JSON.parse);
+  const survivor = spawn(process.execPath, [agentPath, "--state-path", statePath], { stdio: "ignore", windowsHide: true });
+  let supervisor;
+  try {
+    await waitFor(async () => (await readLaunches()).length === 1);
+    const powershell = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    supervisor = spawn(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", launcherPath], { stdio: "ignore", windowsHide: true });
+    await waitFor(async () => (await readLog()).includes("existing agent still running; launch deferred"));
+    assert.equal((await readLaunches()).length, 1, "Recovery must not start a competing state writer");
+    survivor.kill();
+    await waitFor(async () => (await readLog()).includes("agent exited; exitCode=0"));
+    assert.equal((await readLaunches()).length, 2);
+    const log = await readLog();
+    assert.match(log, /expected stderr from agent/);
+    assert.doesNotMatch(log, /agent invocation failed/);
+    await waitFor(async () => supervisor.exitCode !== null);
+    assert.equal(supervisor.exitCode, 0);
+  } finally {
+    survivor.kill();
+    supervisor?.kill();
+  }
 });
