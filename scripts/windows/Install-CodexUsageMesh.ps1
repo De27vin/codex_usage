@@ -68,9 +68,9 @@ function Resolve-Configuration {
         LegacyStatePath = $legacyStatePath
         NodePath = $resolvedNode
         LauncherPath = Join-Path $resolvedRepo ".cache\windows-agent\$TaskName.Supervisor.ps1"
-        LogPath = Join-Path $resolvedInstall 'logs\supervisor.log'
+        LogPath = Join-Path $resolvedRepo ".cache\windows-agent\$TaskName.Supervisor.log"
         AgentPath = Join-Path $resolvedRepo 'agent.mjs'
-        GeneratorPath = Join-Path $resolvedRepo 'scripts\generate-windows-agent-files.mjs'
+        GeneratorPath = Resolve-FullPath (Join-Path $PSScriptRoot '..\generate-windows-agent-files.mjs')
     }
 }
 
@@ -121,6 +121,7 @@ function Get-MatchingProcesses {
     }
 
     $supervisors = @($processes | Where-Object {
+        $_.ProcessId -ne $PID -and $_.Name -in @('powershell.exe', 'pwsh.exe') -and
         $_.CommandLine -and $_.CommandLine.IndexOf($Configuration.LauncherPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     })
     $agents = @($processes | Where-Object {
@@ -182,7 +183,8 @@ function New-TaskXml {
     $uri = Escape-XmlText ("\" + $TaskName)
     $powershellPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $command = Escape-XmlText $powershellPath
-    $actionArguments = Escape-XmlText ("-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$($Configuration.LauncherPath)`"")
+    $actionArguments = Escape-XmlText ("-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($Configuration.LauncherPath)`"")
+    $recoveryStart = [DateTimeOffset]::Now.AddMinutes(1).ToString('yyyy-MM-ddTHH:mm:sszzz')
     $eventSubscription = Escape-XmlText '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name="Microsoft-Windows-Power-Troubleshooter"] and EventID=1]]</Select></Query></QueryList>'
 
     return @"
@@ -190,7 +192,7 @@ function New-TaskXml {
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Author>$author</Author>
-    <Description>Superviseur local Codex Usage Mesh. Démarre à l'ouverture de session et vérifie la reprise après veille.</Description>
+    <Description>Superviseur local Codex Usage Mesh. Démarre sans fenêtre à l'ouverture de session, après veille et reprend chaque minute si arrêté.</Description>
     <URI>$uri</URI>
   </RegistrationInfo>
   <Triggers>
@@ -202,6 +204,14 @@ function New-TaskXml {
       <Enabled>true</Enabled>
       <Subscription>$eventSubscription</Subscription>
     </EventTrigger>
+    <TimeTrigger>
+      <Repetition>
+        <Interval>PT1M</Interval>
+        <StopAtDurationEnd>false</StopAtDurationEnd>
+      </Repetition>
+      <StartBoundary>$recoveryStart</StartBoundary>
+      <Enabled>true</Enabled>
+    </TimeTrigger>
   </Triggers>
   <Principals>
     <Principal id="Author">
@@ -294,7 +304,12 @@ function Invoke-Diagnostic {
     $taskXml = if ($task) { Export-ScheduledTask -TaskName $TaskName -TaskPath $ManagedTaskPath } else { '' }
     $processes = Get-MatchingProcesses $Configuration
     $state = Read-AgentState $Configuration.StatePath
-    $lastSyncAt = if ($state) { [string]$state.lastSyncAt } else { $null }
+    $lastSyncValue = if ($state) { $state.lastSyncAt } else { $null }
+    $lastSyncAt = if ($lastSyncValue -is [DateTime] -or $lastSyncValue -is [DateTimeOffset]) {
+        $lastSyncValue.ToString('o')
+    } elseif ($null -ne $lastSyncValue) {
+        [string]$lastSyncValue
+    } else { $null }
     $syncAgeMinutes = $null
     $syncRecent = $false
     if ($lastSyncAt) {
@@ -331,6 +346,8 @@ function Invoke-Diagnostic {
         LastTaskResult = if ($taskInfo) { $taskInfo.LastTaskResult } else { $null }
         LogonTrigger = [bool]($taskXml -match '<LogonTrigger>')
         ResumeTrigger = [bool]($taskXml -match 'Microsoft-Windows-Power-Troubleshooter')
+        RecoveryTrigger = [bool]($taskXml -match '(?s)<TimeTrigger>.*?<Interval>PT1M</Interval>.*?</TimeTrigger>')
+        HiddenWindow = [bool]($task -and ($task.Actions | Where-Object { $_.Arguments -match '(?i)-WindowStyle\s+Hidden\b' }))
         SupervisorProcessCount = $processes.Supervisors.Count
         AgentProcessCount = $processes.Agents.Count
         ProcessInspectionError = $processes.InspectionError
@@ -347,7 +364,7 @@ function Invoke-Diagnostic {
         LogPath = $Configuration.LogPath
     }
     $healthy = $result.TaskInstalled -and $result.TaskState -eq 'Running' -and
-        $result.LogonTrigger -and $result.ResumeTrigger -and
+        $result.LogonTrigger -and $result.ResumeTrigger -and $result.RecoveryTrigger -and $result.HiddenWindow -and
         $result.SupervisorProcessCount -eq 1 -and $result.AgentProcessCount -eq 1 -and
         $result.StateEnrolled -and $result.SyncRecent -and $result.HubReachable
     return [pscustomobject]@{ Result = $result; Healthy = $healthy }
