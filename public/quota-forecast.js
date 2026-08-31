@@ -46,7 +46,16 @@ export function weeklyForecastTicks(rangeStart, rangeEnd) {
   const startTime = validTime(rangeStart);
   const endTime = validTime(rangeEnd);
   if (startTime === null || endTime === null || endTime <= startTime) return [];
-  return Array.from({ length: 8 }, (_, index) => startTime + index * (endTime - startTime) / 7);
+  const midnight = new Date(startTime);
+  midnight.setHours(0, 0, 0, 0);
+  if (midnight.getTime() < startTime) midnight.setDate(midnight.getDate() + 1);
+
+  const ticks = [];
+  while (midnight.getTime() <= endTime) {
+    ticks.push(midnight.getTime());
+    midnight.setDate(midnight.getDate() + 1);
+  }
+  return ticks;
 }
 
 export function interpolateForecastPercent(points, timestamp) {

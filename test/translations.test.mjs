@@ -9,6 +9,7 @@ const dynamicKeys = [
   "period.todayLabel",
   "period.7dLabel",
   "period.30dLabel",
+  "period.12mLabel",
   "period.allLabel",
   "effort.low",
   "effort.medium",
