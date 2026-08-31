@@ -28,6 +28,19 @@ test("an explicit custom end is inclusive and latest calls sort by actual call t
   assert.equal(latestTimestamp([{ timestamp: "2026-08-01T12:00:00Z" }, { timestamp: "2026-08-02T09:00:00Z" }]), "2026-08-02T09:00:00Z");
 });
 
+test("12 months and all history are distinct main-page ranges", () => {
+  const now = new Date(2026, 7, 27, 14, 5);
+  const rollingYear = resolveDateRange("12m", null, now);
+  const allHistory = resolveDateRange("all", null, now);
+
+  assert.deepEqual(rollingYear.start, new Date(2025, 7, 27, 0, 0, 0, 0));
+  assert.equal(rollingYear.end.getTime(), now.getTime());
+  assert.equal(timestampInRange(new Date(2025, 7, 26, 23, 59, 59).toISOString(), rollingYear), false);
+  assert.equal(timestampInRange(new Date(2025, 7, 27, 0, 0, 0).toISOString(), rollingYear), true);
+  assert.equal(allHistory.start.getTime(), 0);
+  assert.equal(timestampInRange("2024-01-01T00:00:00.000Z", allHistory), true);
+});
+
 test("weekly range starts 7 days before the current Codex reset", () => {
   const now = new Date("2026-08-14T15:00:00.000Z");
   const range = resolveWeeklyRange({ windowMinutes: 10080, resetsAt: "2026-08-20T12:00:00.000Z" }, now);

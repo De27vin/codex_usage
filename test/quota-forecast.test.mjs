@@ -8,11 +8,16 @@ test("exponential weighting gives more influence to recent credit consumption", 
   assert.ok(recentSpike > olderSpike);
 });
 
-test("weekly forecast exposes one vertical boundary for every day", () => {
-  const start = Date.parse("2026-08-13T03:29:39.000Z");
+test("weekly forecast vertical guides follow local midnight instead of the quota start hour", () => {
+  const start = new Date(2026, 7, 25, 16, 13).getTime();
   const ticks = weeklyForecastTicks(start, start + 7 * 24 * FORECAST_HOUR_MS);
-  assert.equal(ticks.length, 8);
-  assert.deepEqual(ticks.slice(1).map((tick, index) => tick - ticks[index]), Array(7).fill(24 * FORECAST_HOUR_MS));
+  assert.equal(ticks.length, 7);
+  assert.ok(ticks.every((tick) => {
+    const date = new Date(tick);
+    return date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
+  }));
+  assert.equal(new Date(ticks[0]).getDate(), 26);
+  assert.equal(new Date(ticks.at(-1)).getDate(), 1);
 });
 
 test("forecast hover values interpolate the curve at the axis date", () => {
