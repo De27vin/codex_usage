@@ -13,7 +13,7 @@ const EMPTY_USAGE = Object.freeze({
   totalTokens: 0,
 });
 
-export const ANALYZER_VERSION = 6;
+export const ANALYZER_VERSION = 7;
 
 function projectNameFromCwd(value) {
   const name = String(value || "").replace(/\\/g, "/").replace(/\/+$/, "").split("/").pop()?.trim();
@@ -133,30 +133,38 @@ function resetDate(value) {
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
-export function normalizeWeeklyQuota(raw, observedAt = null) {
+function normalizeQuotaWindow(raw, windowMinutes, observedAt = null) {
   if (!raw || typeof raw !== "object") return null;
   const windows = [raw.primary, raw.secondary, raw.individual_limit]
     .filter((window) => window && typeof window === "object")
     .map((window) => ({ ...window, windowMinutes: optionalNumber(window.window_minutes) }))
-    .filter((window) => window.windowMinutes === 7 * 24 * 60);
-  const weekly = windows[0];
-  if (!weekly) return null;
-  const usedPercent = optionalNumber(weekly.used_percent);
+    .filter((window) => window.windowMinutes === windowMinutes);
+  const quotaWindow = windows[0];
+  if (!quotaWindow) return null;
+  const usedPercent = optionalNumber(quotaWindow.used_percent);
   const resetsAvailable = optionalNumber(
-    weekly.resets_available
-    ?? weekly.resets_remaining
+    quotaWindow.resets_available
+    ?? quotaWindow.resets_remaining
     ?? raw.resets_available
     ?? raw.resets_remaining,
   );
   return {
     usedPercent: usedPercent === null ? null : Math.min(100, Math.max(0, usedPercent)),
     remainingPercent: usedPercent === null ? null : Math.min(100, Math.max(0, 100 - usedPercent)),
-    windowMinutes: weekly.windowMinutes,
-    resetsAt: resetDate(weekly.resets_at),
+    windowMinutes: quotaWindow.windowMinutes,
+    resetsAt: resetDate(quotaWindow.resets_at),
     resetsAvailable: resetsAvailable === null ? null : Math.max(0, resetsAvailable),
     observedAt: resetDate(observedAt),
     planType: raw.plan_type || null,
   };
+}
+
+export function normalizeFiveHourQuota(raw, observedAt = null) {
+  return normalizeQuotaWindow(raw, 5 * 60, observedAt);
+}
+
+export function normalizeWeeklyQuota(raw, observedAt = null) {
+  return normalizeQuotaWindow(raw, 7 * 24 * 60, observedAt);
 }
 
 async function walkJsonl(root) {
@@ -220,6 +228,7 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
   let currentServiceTier = "default";
   let userMessages = 0;
   let assistantMessages = 0;
+  let fiveHourQuota = null;
   let weeklyQuota = null;
   const weeklyQuotaObservations = [];
   const turns = new Map();
@@ -270,7 +279,10 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
 
       if (row.type !== "event_msg") continue;
       const payload = row.payload || {};
-      const observedQuota = normalizeWeeklyQuota(payload.rate_limits || payload.info?.rate_limits, timestamp);
+      const rateLimits = payload.rate_limits || payload.info?.rate_limits;
+      const observedFiveHourQuota = normalizeFiveHourQuota(rateLimits, timestamp);
+      if (observedFiveHourQuota) fiveHourQuota = observedFiveHourQuota;
+      const observedQuota = normalizeWeeklyQuota(rateLimits, timestamp);
       if (observedQuota) {
         weeklyQuota = observedQuota;
         weeklyQuotaObservations.push(observedQuota);
@@ -350,6 +362,7 @@ export async function parseSessionFile(filePath, threadNames = new Map()) {
     usage,
     turns: turnList,
     calls,
+    fiveHourQuota,
     weeklyQuota,
     weeklyQuotaHistory: mergeWeeklyQuotaObservations(weeklyQuotaObservations),
     parseErrors: parseErrors.length,
@@ -405,11 +418,16 @@ export async function analyzeCodexUsage(options = {}) {
 
   const weeklyQuotaHistory = mergeWeeklyQuotaObservations([...unique.values()]
     .flatMap((session) => session.weeklyQuotaHistory || (session.weeklyQuota ? [session.weeklyQuota] : [])));
+  const fiveHourQuota = [...unique.values()]
+    .map((session) => session.fiveHourQuota)
+    .filter(Boolean)
+    .sort((left, right) => String(right.observedAt).localeCompare(String(left.observedAt)))[0] || null;
 
   return {
     analyzerVersion: ANALYZER_VERSION,
     generatedAt: new Date().toISOString(),
     source: sourceStatus,
+    fiveHourQuota,
     weeklyQuota: weeklyQuotaHistory[0] || null,
     weeklyQuotaHistory,
     sessions: [...unique.values()].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))),

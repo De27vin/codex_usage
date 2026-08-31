@@ -208,6 +208,18 @@ for (const [language, messages] of Object.entries(pageMessages)) {
   Object.assign({ es, it, pt, ja, ru, zh }[language], messages);
 }
 
+const quotaHeaderMessages = {
+  es: { "quota.awaitingShort": "En espera", "quota.headerLabel": "Cuotas de Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  it: { "quota.awaitingShort": "In attesa", "quota.headerLabel": "Quote Codex", "quota.fiveHour": "5 ore", "quota.fiveHourShort": "5h", "quota.weekly": "Settimanale", "quota.weeklyShort": "Settimanale" },
+  pt: { "quota.awaitingShort": "A aguardar", "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  ja: { "quota.awaitingShort": "観測待ち", "quota.headerLabel": "Codex クォータ", "quota.fiveHour": "5時間", "quota.fiveHourShort": "5h", "quota.weekly": "週間", "quota.weeklyShort": "週間" },
+  ru: { "quota.awaitingShort": "Ожидание данных", "quota.headerLabel": "Квоты Codex", "quota.fiveHour": "5 часов", "quota.fiveHourShort": "5h", "quota.weekly": "Недельная", "quota.weeklyShort": "Недельная" },
+  zh: { "quota.awaitingShort": "等待数据", "quota.headerLabel": "Codex 额度", "quota.fiveHour": "5 小时", "quota.fiveHourShort": "5h", "quota.weekly": "每周", "quota.weeklyShort": "每周" },
+};
+for (const [language, messages] of Object.entries(quotaHeaderMessages)) {
+  Object.assign({ es, it, pt, ja, ru, zh }[language], messages);
+}
+
 const pwaMessages = {
   es: { "pwa.eyebrow": "APLICACIÓN", "pwa.title": "Instalar en este teléfono", "pwa.copy": "Añade Codex Usage a la pantalla de inicio para abrirlo como una aplicación.", "pwa.install": "Instalar aplicación", "pwa.ready": "La aplicación está lista para instalarse.", "pwa.instructions": "En Android, abre el menú del navegador y elige Instalar aplicación o Añadir a pantalla de inicio si el botón no aparece.", "pwa.installed": "Codex Usage está instalado en este dispositivo.", "pwa.dismissed": "La instalación se canceló. Puedes intentarlo de nuevo desde el menú del navegador.", "pwa.toastTitle": "Instalar Codex Usage", "pwa.toastCopy": "Añade el panel a la pantalla de inicio y ábrelo como una aplicación.", "pwa.howTo": "Ver cómo", "pwa.toastClose": "Ocultar sugerencia de instalación" },
   it: { "pwa.eyebrow": "APPLICAZIONE", "pwa.title": "Installa su questo telefono", "pwa.copy": "Aggiungi Codex Usage alla schermata Home per aprirlo come un’app.", "pwa.install": "Installa app", "pwa.ready": "L’app è pronta per l’installazione.", "pwa.instructions": "Su Android, apri il menu del browser e scegli Installa app o Aggiungi a schermata Home se il pulsante non appare.", "pwa.installed": "Codex Usage è installata su questo dispositivo.", "pwa.dismissed": "L’installazione è stata annullata. Puoi riprovare dal menu del browser.", "pwa.toastTitle": "Installa Codex Usage", "pwa.toastCopy": "Aggiungi la dashboard alla schermata Home e aprila come un’app.", "pwa.howTo": "Scopri come", "pwa.toastClose": "Nascondi il suggerimento di installazione" },
