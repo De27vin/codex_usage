@@ -212,15 +212,15 @@ const PAGE_I18N = {
 for (const [language, messages] of Object.entries(PAGE_I18N)) Object.assign(I18N[language], messages);
 
 const QUOTA_HEADER_I18N = {
-  fr: { "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 heures", "quota.fiveHourShort": "5h", "quota.weekly": "Hebdomadaire", "quota.weeklyShort": "Hebdo" },
-  en: { "quota.headerLabel": "Codex quotas", "quota.fiveHour": "5 hours", "quota.fiveHourShort": "5h", "quota.weekly": "Weekly", "quota.weeklyShort": "Weekly" },
-  de: { "quota.headerLabel": "Codex-Kontingente", "quota.fiveHour": "5 Stunden", "quota.fiveHourShort": "5h", "quota.weekly": "Wöchentlich", "quota.weeklyShort": "Wöchentlich" },
-  es: { "quota.headerLabel": "Cuotas de Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
-  it: { "quota.headerLabel": "Quote Codex", "quota.fiveHour": "5 ore", "quota.fiveHourShort": "5h", "quota.weekly": "Settimanale", "quota.weeklyShort": "Settimanale" },
-  pt: { "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
-  ja: { "quota.headerLabel": "Codex クォータ", "quota.fiveHour": "5時間", "quota.fiveHourShort": "5h", "quota.weekly": "週間", "quota.weeklyShort": "週間" },
-  ru: { "quota.headerLabel": "Квоты Codex", "quota.fiveHour": "5 часов", "quota.fiveHourShort": "5h", "quota.weekly": "Недельная", "quota.weeklyShort": "Недельная" },
-  zh: { "quota.headerLabel": "Codex 额度", "quota.fiveHour": "5 小时", "quota.fiveHourShort": "5h", "quota.weekly": "每周", "quota.weeklyShort": "每周" },
+  fr: { "quota.awaitingShort": "En attente", "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 heures", "quota.fiveHourShort": "5h", "quota.weekly": "Hebdomadaire", "quota.weeklyShort": "Hebdo" },
+  en: { "quota.awaitingShort": "Awaiting data", "quota.headerLabel": "Codex quotas", "quota.fiveHour": "5 hours", "quota.fiveHourShort": "5h", "quota.weekly": "Weekly", "quota.weeklyShort": "Weekly" },
+  de: { "quota.awaitingShort": "Daten ausstehend", "quota.headerLabel": "Codex-Kontingente", "quota.fiveHour": "5 Stunden", "quota.fiveHourShort": "5h", "quota.weekly": "Wöchentlich", "quota.weeklyShort": "Wöchentlich" },
+  es: { "quota.awaitingShort": "En espera", "quota.headerLabel": "Cuotas de Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  it: { "quota.awaitingShort": "In attesa", "quota.headerLabel": "Quote Codex", "quota.fiveHour": "5 ore", "quota.fiveHourShort": "5h", "quota.weekly": "Settimanale", "quota.weeklyShort": "Settimanale" },
+  pt: { "quota.awaitingShort": "A aguardar", "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  ja: { "quota.awaitingShort": "観測待ち", "quota.headerLabel": "Codex クォータ", "quota.fiveHour": "5時間", "quota.fiveHourShort": "5h", "quota.weekly": "週間", "quota.weeklyShort": "週間" },
+  ru: { "quota.awaitingShort": "Ожидание данных", "quota.headerLabel": "Квоты Codex", "quota.fiveHour": "5 часов", "quota.fiveHourShort": "5h", "quota.weekly": "Недельная", "quota.weeklyShort": "Недельная" },
+  zh: { "quota.awaitingShort": "等待数据", "quota.headerLabel": "Codex 额度", "quota.fiveHour": "5 小时", "quota.fiveHourShort": "5h", "quota.weekly": "每周", "quota.weeklyShort": "每周" },
 };
 for (const [language, messages] of Object.entries(QUOTA_HEADER_I18N)) Object.assign(I18N[language], messages);
 
@@ -783,24 +783,30 @@ function renderQuotaNav() {
   $$("[data-weekly-header-remaining]").forEach((element) => { element.textContent = remainingText; });
   $$("[data-weekly-header-reset]").forEach((element) => { element.textContent = resetText || "—"; });
   $$("[data-weekly-header-countdown]").forEach((element) => { element.textContent = countdownText || "—"; });
+  const fiveHourQuota = state.data?.fiveHourQuota || null;
+  const fiveHourResetTime = Date.parse(fiveHourQuota?.resetsAt);
+  const fiveHourExpired = Number.isFinite(fiveHourResetTime) && fiveHourResetTime <= Date.now();
+  // An expired observation cannot describe the next five-hour window.
+  const fiveHourRemaining = !fiveHourExpired && Number.isFinite(fiveHourQuota?.remainingPercent)
+    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(fiveHourQuota.remainingPercent) })
+    : "—";
+  const fiveHourResetAt = !fiveHourExpired && Number.isFinite(fiveHourResetTime) ? new Date(fiveHourResetTime) : null;
+  const fiveHourResetText = fiveHourResetAt ? fiveHourResetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "—";
+  const fiveHourCountdown = fiveHourExpired ? t("quota.awaitingShort") : fiveHourResetAt ? formatQuotaCountdown(fiveHourResetAt) : "—";
+  $$("[data-five-hour-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
+  $$("[data-five-hour-mobile-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
+  $$("[data-five-hour-reset]").forEach((element) => { element.textContent = fiveHourResetText; });
+  $$("[data-five-hour-countdown]").forEach((element) => { element.textContent = fiveHourCountdown; });
+  const fiveHourAria = [t("quota.fiveHour"), fiveHourExpired ? t("quota.awaitingObservation") : fiveHourRemaining];
+  if (fiveHourResetAt) fiveHourAria.push(fiveHourResetText, fiveHourCountdown);
+  $$('[data-header-quota="five-hour"]').forEach((link) => { link.setAttribute("aria-label", fiveHourAria.join(", ")); });
   $$('[data-nav-section="quota"]').forEach((link) => {
     const parts = [t("nav.quota")];
     if (weeklyQuota) parts.push(remainingText);
     if (resetText) parts.push(resetText);
     if (countdownText) parts.push(countdownText);
-    link.setAttribute("aria-label", parts.join(", "));
+    link.setAttribute("aria-label", [...parts, ...fiveHourAria].join(", "));
   });
-  const fiveHourQuota = state.data?.fiveHourQuota || null;
-  const fiveHourRemaining = Number.isFinite(fiveHourQuota?.remainingPercent)
-    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(fiveHourQuota.remainingPercent) })
-    : "—";
-  const fiveHourResetAt = Number.isFinite(Date.parse(fiveHourQuota?.resetsAt)) ? new Date(fiveHourQuota.resetsAt) : null;
-  const fiveHourResetText = fiveHourResetAt ? fiveHourResetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "—";
-  const fiveHourCountdown = fiveHourResetAt ? formatQuotaCountdown(fiveHourResetAt) : "—";
-  $$("[data-five-hour-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
-  $$("[data-five-hour-mobile-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
-  $$("[data-five-hour-reset]").forEach((element) => { element.textContent = fiveHourResetText; });
-  $$("[data-five-hour-countdown]").forEach((element) => { element.textContent = fiveHourCountdown; });
   state.renderedQuotaReset = weeklyQuota?.resetsAt || null;
 }
 

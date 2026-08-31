@@ -209,12 +209,12 @@ for (const [language, messages] of Object.entries(pageMessages)) {
 }
 
 const quotaHeaderMessages = {
-  es: { "quota.headerLabel": "Cuotas de Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
-  it: { "quota.headerLabel": "Quote Codex", "quota.fiveHour": "5 ore", "quota.fiveHourShort": "5h", "quota.weekly": "Settimanale", "quota.weeklyShort": "Settimanale" },
-  pt: { "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
-  ja: { "quota.headerLabel": "Codex クォータ", "quota.fiveHour": "5時間", "quota.fiveHourShort": "5h", "quota.weekly": "週間", "quota.weeklyShort": "週間" },
-  ru: { "quota.headerLabel": "Квоты Codex", "quota.fiveHour": "5 часов", "quota.fiveHourShort": "5h", "quota.weekly": "Недельная", "quota.weeklyShort": "Недельная" },
-  zh: { "quota.headerLabel": "Codex 额度", "quota.fiveHour": "5 小时", "quota.fiveHourShort": "5h", "quota.weekly": "每周", "quota.weeklyShort": "每周" },
+  es: { "quota.awaitingShort": "En espera", "quota.headerLabel": "Cuotas de Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  it: { "quota.awaitingShort": "In attesa", "quota.headerLabel": "Quote Codex", "quota.fiveHour": "5 ore", "quota.fiveHourShort": "5h", "quota.weekly": "Settimanale", "quota.weeklyShort": "Settimanale" },
+  pt: { "quota.awaitingShort": "A aguardar", "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  ja: { "quota.awaitingShort": "観測待ち", "quota.headerLabel": "Codex クォータ", "quota.fiveHour": "5時間", "quota.fiveHourShort": "5h", "quota.weekly": "週間", "quota.weeklyShort": "週間" },
+  ru: { "quota.awaitingShort": "Ожидание данных", "quota.headerLabel": "Квоты Codex", "quota.fiveHour": "5 часов", "quota.fiveHourShort": "5h", "quota.weekly": "Недельная", "quota.weeklyShort": "Недельная" },
+  zh: { "quota.awaitingShort": "等待数据", "quota.headerLabel": "Codex 额度", "quota.fiveHour": "5 小时", "quota.fiveHourShort": "5h", "quota.weekly": "每周", "quota.weeklyShort": "每周" },
 };
 for (const [language, messages] of Object.entries(quotaHeaderMessages)) {
   Object.assign({ es, it, pt, ja, ru, zh }[language], messages);
