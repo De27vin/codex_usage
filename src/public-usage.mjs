@@ -74,7 +74,7 @@ function publicSource(source) {
   };
 }
 
-function publicWeeklyQuota(quota) {
+function publicQuota(quota) {
   if (!quota) return null;
   return {
     usedPercent: quota.usedPercent ?? null,
@@ -118,8 +118,9 @@ export function toPublicUsage(data) {
     analyzerVersion: data.analyzerVersion,
     generatedAt: data.generatedAt,
     source: publicSource(data.source),
-    weeklyQuota: publicWeeklyQuota(data.weeklyQuota),
-    weeklyQuotaHistory: (data.weeklyQuotaHistory || []).map(publicWeeklyQuota).filter(Boolean),
+    fiveHourQuota: publicQuota(data.fiveHourQuota),
+    weeklyQuota: publicQuota(data.weeklyQuota),
+    weeklyQuotaHistory: (data.weeklyQuotaHistory || []).map(publicQuota).filter(Boolean),
     nodes: (data.nodes || []).map(publicNode),
     sessions: (data.sessions || []).map(publicSession),
     errorCount: Array.isArray(data.errors) ? data.errors.length : 0,

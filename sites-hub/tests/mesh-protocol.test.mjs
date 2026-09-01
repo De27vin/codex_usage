@@ -19,6 +19,7 @@ test("Sites verifies envelopes produced by the desktop agent", async () => {
     analyzerVersion: 3,
     generatedAt: new Date().toISOString(),
     privacy: { projectMode: "hash", includeTitles: false },
+    shortQuota: { usedPercent: 10, remainingPercent: 90, windowMinutes: 300, resetsAt: new Date().toISOString() },
     quota: null,
     quotaHistory: [],
     upserts: [],

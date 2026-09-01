@@ -76,10 +76,20 @@ $OutputEncoding = $Utf8NoBom
 
 function Write-SupervisorLog {
     param([Parameter(Mandatory = $true)][string]$Message)
+    $ErrorActionPreference = 'Stop'
     $directory = Split-Path -Parent $LogPath
     if ($directory) { [System.IO.Directory]::CreateDirectory($directory) | Out-Null }
     $timestamp = [DateTimeOffset]::Now.ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
     [System.IO.File]::AppendAllText($LogPath, "[$timestamp] $Message" + [Environment]::NewLine, $Utf8NoBom)
+}
+
+function Invoke-AgentProcess {
+    # Windows PowerShell wraps native stderr in error records. Log them without
+    # aborting a running collector; its exit code determines whether to restart.
+    $ErrorActionPreference = 'Continue'
+    & $NodePath $AgentPath '--state-path' $StatePath 2>&1 |
+        ForEach-Object { Write-SupervisorLog ("agent: " + $_.ToString()) }
+    return [int]$LASTEXITCODE
 }
 
 $mutex = $null
@@ -120,14 +130,24 @@ try {
     $restartAttempt = 0
     Write-SupervisorLog "supervisor started; statePath=$StatePath; restartDelaySeconds=$RestartDelaySeconds"
     while ($true) {
+        # Stopping a scheduled supervisor can leave its child alive. Never start
+        # another writer for the same state until that child has exited.
+        $existingAgents = @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
+            $_.Name -ieq 'node.exe' -and $_.CommandLine -and
+            $_.CommandLine.IndexOf($AgentPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+            $_.CommandLine.IndexOf($StatePath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        })
+        if ($existingAgents.Count -gt 0) {
+            Write-SupervisorLog ("existing agent still running; launch deferred; pid=" + ($existingAgents.ProcessId -join ','))
+            Start-Sleep -Seconds $RestartDelaySeconds
+            continue
+        }
         $launchAttempt += 1
         Write-SupervisorLog "agent launch; attempt=$launchAttempt"
         $exitCode = 1
         try {
             $global:LASTEXITCODE = 0
-            & $NodePath $AgentPath '--state-path' $StatePath 2>&1 |
-                ForEach-Object { Write-SupervisorLog ("agent: " + $_.ToString()) }
-            $exitCode = [int]$LASTEXITCODE
+            $exitCode = Invoke-AgentProcess
         } catch {
             Write-SupervisorLog ("agent invocation failed: " + $_.Exception.Message)
             $exitCode = 1

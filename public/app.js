@@ -1,7 +1,7 @@
 import { codexCreditsOfCalls, fastMultiplierFor, usageProfilesOfCalls } from "./usage-pricing.js";
 import { DEFAULT_API_PRICING, apiCostOfCalls, apiPriceFor, mergeApiPricing } from "./api-pricing.js";
 import { ADDITIONAL_I18N, LOCALE_TAGS, resolveLanguage } from "./translations.js";
-import { chartDrilldownBuckets, chartDrilldownFilterRange, nextChartGranularity, percentageOf, stackedChartSegments } from "./visualization.js";
+import { chartDrilldownBuckets, chartDrilldownFilterRange, monthlyChartBuckets, nextChartGranularity, percentageOf, stackedChartSegments } from "./visualization.js";
 import { latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, theoreticalWeeklyQuotaPeriod, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
 import { buildQuotaForecast, estimateQuotaCapacityCredits, interpolateForecastPercent, weeklyForecastTicks } from "./quota-forecast.js";
 import { OVERVIEW_PROJECT_LIMIT, projectIdentity } from "./project-identity.js";
@@ -31,8 +31,8 @@ if (isHostedRuntime()) document.documentElement.dataset.hosted = "true";
 const I18N = {
   fr: {
     "app.title": "Local Usage — Coûts et activité", "brand.tagline": "pour Codex · local", "license.independent": "Projet libre et indépendant pour les données locales Codex.", "license.source": "Code source", "nav.period": "Période", "nav.main": "Navigation principale", "nav.overview": "Aperçu", "nav.projects": "Projets", "nav.quota": "Quota hebdomadaire", "nav.conversations": "Conversations", "nav.settings": "Réglages", "action.language": "Langue", "action.close": "Fermer", "summary.label": "Synthèse de la période", "summary.kpis": "Indicateurs principaux",
-    "period.today": "Aujourd’hui", "period.7d": "7 jours", "period.30d": "30 jours", "period.all": "Tout", "period.custom": "Personnalisé", "period.customStart": "Début", "period.customEnd": "Fin", "period.now": "Maintenant",
-    "period.todayLabel": "Aujourd’hui", "period.7dLabel": "7 derniers jours", "period.30dLabel": "30 derniers jours", "period.allLabel": "Tout l’historique local", "period.customLabel": "Du {start} au {end}",
+    "period.today": "Aujourd’hui", "period.7d": "7 jours", "period.30d": "30 jours", "period.12m": "12 mois", "period.all": "Tout", "period.custom": "Personnalisé", "period.customStart": "Début", "period.customEnd": "Fin", "period.now": "Maintenant",
+    "period.todayLabel": "Aujourd’hui", "period.7dLabel": "7 derniers jours", "period.30dLabel": "30 derniers jours", "period.12mLabel": "12 derniers mois", "period.allLabel": "Tout l’historique local", "period.customLabel": "Du {start} au {end}",
     "action.refresh": "Actualiser", "action.pricing": "Configurer les tarifs", "hero.title": "Coûts et activité", "hero.privacy": "Données locales uniquement",
     "section.load": "ACTIVITÉ", "section.distribution": "RÉPARTITION", "section.rhythm": "RYTHME", "section.signal": "SIGNAL", "section.conversations": "DÉTAIL",
     "chart.tokens": "Tokens dans le temps", "chart.footprint": "Empreinte tokens", "chart.calls": "Appels modèle",
@@ -52,8 +52,8 @@ const I18N = {
   },
   en: {
     "app.title": "Local Usage — Costs and activity", "brand.tagline": "for Codex · local", "license.independent": "Independent free software for local Codex data.", "license.source": "Source code", "nav.period": "Period", "nav.main": "Main navigation", "nav.overview": "Overview", "nav.projects": "Projects", "nav.quota": "Weekly Quota", "nav.conversations": "Conversations", "nav.settings": "Settings", "action.language": "Language", "action.close": "Close", "summary.label": "Period summary", "summary.kpis": "Key indicators",
-    "period.today": "Today", "period.7d": "7 days", "period.30d": "30 days", "period.all": "All", "period.custom": "Custom", "period.customStart": "Start", "period.customEnd": "End", "period.now": "Now",
-    "period.todayLabel": "Today", "period.7dLabel": "Last 7 days", "period.30dLabel": "Last 30 days", "period.allLabel": "All local history", "period.customLabel": "From {start} to {end}",
+    "period.today": "Today", "period.7d": "7 days", "period.30d": "30 days", "period.12m": "12 months", "period.all": "All", "period.custom": "Custom", "period.customStart": "Start", "period.customEnd": "End", "period.now": "Now",
+    "period.todayLabel": "Today", "period.7dLabel": "Last 7 days", "period.30dLabel": "Last 30 days", "period.12mLabel": "Last 12 months", "period.allLabel": "All local history", "period.customLabel": "From {start} to {end}",
     "action.refresh": "Refresh", "action.pricing": "Configure prices", "hero.title": "Costs and activity", "hero.privacy": "Local data only",
     "section.load": "ACTIVITY", "section.distribution": "DISTRIBUTION", "section.rhythm": "PACE", "section.signal": "SIGNAL", "section.conversations": "DETAIL",
     "chart.tokens": "Tokens over time", "chart.footprint": "Token footprint", "chart.calls": "Model calls",
@@ -75,8 +75,8 @@ const I18N = {
   },
   de: {
     "app.title": "Local Usage — Kosten und Aktivität", "brand.tagline": "für Codex · lokal", "license.independent": "Unabhängige freie Software für lokale Codex-Daten.", "license.source": "Quellcode", "nav.period": "Zeitraum", "nav.main": "Hauptnavigation", "nav.overview": "Übersicht", "nav.projects": "Projekte", "nav.quota": "Wochenkontingent", "nav.conversations": "Konversationen", "nav.settings": "Einstellungen", "action.language": "Sprache", "action.close": "Schließen", "summary.label": "Zusammenfassung des Zeitraums", "summary.kpis": "Wichtigste Kennzahlen",
-    "period.today": "Heute", "period.7d": "7 Tage", "period.30d": "30 Tage", "period.all": "Alle", "period.custom": "Benutzerdefiniert", "period.customStart": "Beginn", "period.customEnd": "Ende", "period.now": "Jetzt",
-    "period.todayLabel": "Heute", "period.7dLabel": "Letzte 7 Tage", "period.30dLabel": "Letzte 30 Tage", "period.allLabel": "Gesamter lokaler Verlauf", "period.customLabel": "Von {start} bis {end}",
+    "period.today": "Heute", "period.7d": "7 Tage", "period.30d": "30 Tage", "period.12m": "12 Monate", "period.all": "Alle", "period.custom": "Benutzerdefiniert", "period.customStart": "Beginn", "period.customEnd": "Ende", "period.now": "Jetzt",
+    "period.todayLabel": "Heute", "period.7dLabel": "Letzte 7 Tage", "period.30dLabel": "Letzte 30 Tage", "period.12mLabel": "Letzte 12 Monate", "period.allLabel": "Gesamter lokaler Verlauf", "period.customLabel": "Von {start} bis {end}",
     "action.refresh": "Aktualisieren", "action.pricing": "Preise konfigurieren", "hero.title": "Kosten und Aktivität", "hero.privacy": "Nur lokale Daten",
     "section.load": "AKTIVITÄT", "section.distribution": "VERTEILUNG", "section.rhythm": "RHYTHMUS", "section.signal": "SIGNAL", "section.conversations": "DETAIL",
     "chart.tokens": "Tokens im Zeitverlauf", "chart.footprint": "Token-Verteilung", "chart.calls": "Modellaufrufe",
@@ -210,6 +210,19 @@ const PAGE_I18N = {
   },
 };
 for (const [language, messages] of Object.entries(PAGE_I18N)) Object.assign(I18N[language], messages);
+
+const QUOTA_HEADER_I18N = {
+  fr: { "quota.awaitingShort": "En attente", "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 heures", "quota.fiveHourShort": "5h", "quota.weekly": "Hebdomadaire", "quota.weeklyShort": "Hebdo" },
+  en: { "quota.awaitingShort": "Awaiting data", "quota.headerLabel": "Codex quotas", "quota.fiveHour": "5 hours", "quota.fiveHourShort": "5h", "quota.weekly": "Weekly", "quota.weeklyShort": "Weekly" },
+  de: { "quota.awaitingShort": "Daten ausstehend", "quota.headerLabel": "Codex-Kontingente", "quota.fiveHour": "5 Stunden", "quota.fiveHourShort": "5h", "quota.weekly": "Wöchentlich", "quota.weeklyShort": "Wöchentlich" },
+  es: { "quota.awaitingShort": "En espera", "quota.headerLabel": "Cuotas de Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  it: { "quota.awaitingShort": "In attesa", "quota.headerLabel": "Quote Codex", "quota.fiveHour": "5 ore", "quota.fiveHourShort": "5h", "quota.weekly": "Settimanale", "quota.weeklyShort": "Settimanale" },
+  pt: { "quota.awaitingShort": "A aguardar", "quota.headerLabel": "Quotas Codex", "quota.fiveHour": "5 horas", "quota.fiveHourShort": "5h", "quota.weekly": "Semanal", "quota.weeklyShort": "Semanal" },
+  ja: { "quota.awaitingShort": "観測待ち", "quota.headerLabel": "Codex クォータ", "quota.fiveHour": "5時間", "quota.fiveHourShort": "5h", "quota.weekly": "週間", "quota.weeklyShort": "週間" },
+  ru: { "quota.awaitingShort": "Ожидание данных", "quota.headerLabel": "Квоты Codex", "quota.fiveHour": "5 часов", "quota.fiveHourShort": "5h", "quota.weekly": "Недельная", "quota.weeklyShort": "Недельная" },
+  zh: { "quota.awaitingShort": "等待数据", "quota.headerLabel": "Codex 额度", "quota.fiveHour": "5 小时", "quota.fiveHourShort": "5h", "quota.weekly": "每周", "quota.weeklyShort": "每周" },
+};
+for (const [language, messages] of Object.entries(QUOTA_HEADER_I18N)) Object.assign(I18N[language], messages);
 
 const PWA_I18N = {
   fr: { "pwa.eyebrow": "APPLICATION", "pwa.title": "Installer sur ce téléphone", "pwa.copy": "Ajoutez Codex Usage à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.install": "Installer l’application", "pwa.ready": "L’application est prête à être installée.", "pwa.instructions": "Sur Android, ouvrez le menu du navigateur puis choisissez Installer l’application ou Ajouter à l’écran d’accueil si le bouton ne s’affiche pas.", "pwa.installed": "Codex Usage est installée sur cet appareil.", "pwa.dismissed": "L’installation a été annulée. Vous pouvez réessayer depuis le menu du navigateur.", "pwa.toastTitle": "Installer Codex Usage", "pwa.toastCopy": "Ajoutez le tableau de bord à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.howTo": "Voir comment", "pwa.toastClose": "Masquer la proposition" },
@@ -754,27 +767,47 @@ function formatQuotaCountdown(resetAt, now = new Date()) {
 }
 
 function renderQuotaNav() {
-  const quota = quotaPeriods()[0] || null;
-  const available = quota && !quota.theoretical && Number.isFinite(quota.remainingPercent);
-  const remainingText = quota?.theoretical
+  const weeklyQuota = quotaPeriods()[0] || null;
+  const available = weeklyQuota && !weeklyQuota.theoretical && Number.isFinite(weeklyQuota.remainingPercent);
+  const remainingText = weeklyQuota?.theoretical
     ? t("quota.awaitingObservation")
     : available
-      ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(quota.remainingPercent) })
+      ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(weeklyQuota.remainingPercent) })
       : "—";
-  const resetAt = quota ? currentQuotaResetAt() : null;
+  const resetAt = weeklyQuota ? currentQuotaResetAt() : null;
   const resetText = resetAt ? resetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "";
   const countdownText = resetAt ? formatQuotaCountdown(resetAt) : "";
   $$("[data-quota-nav-remaining]").forEach((element) => { element.textContent = remainingText; });
   $$("[data-quota-nav-reset]").forEach((element) => { element.textContent = resetText; });
   $$("[data-quota-nav-countdown]").forEach((element) => { element.textContent = countdownText; });
+  $$("[data-weekly-header-remaining]").forEach((element) => { element.textContent = remainingText; });
+  $$("[data-weekly-header-reset]").forEach((element) => { element.textContent = resetText || "—"; });
+  $$("[data-weekly-header-countdown]").forEach((element) => { element.textContent = countdownText || "—"; });
+  const fiveHourQuota = state.data?.fiveHourQuota || null;
+  const fiveHourResetTime = Date.parse(fiveHourQuota?.resetsAt);
+  const fiveHourExpired = Number.isFinite(fiveHourResetTime) && fiveHourResetTime <= Date.now();
+  // An expired observation cannot describe the next five-hour window.
+  const fiveHourRemaining = !fiveHourExpired && Number.isFinite(fiveHourQuota?.remainingPercent)
+    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(fiveHourQuota.remainingPercent) })
+    : "—";
+  const fiveHourResetAt = !fiveHourExpired && Number.isFinite(fiveHourResetTime) ? new Date(fiveHourResetTime) : null;
+  const fiveHourResetText = fiveHourResetAt ? fiveHourResetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "—";
+  const fiveHourCountdown = fiveHourExpired ? t("quota.awaitingShort") : fiveHourResetAt ? formatQuotaCountdown(fiveHourResetAt) : "—";
+  $$("[data-five-hour-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
+  $$("[data-five-hour-mobile-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
+  $$("[data-five-hour-reset]").forEach((element) => { element.textContent = fiveHourResetText; });
+  $$("[data-five-hour-countdown]").forEach((element) => { element.textContent = fiveHourCountdown; });
+  const fiveHourAria = [t("quota.fiveHour"), fiveHourExpired ? t("quota.awaitingObservation") : fiveHourRemaining];
+  if (fiveHourResetAt) fiveHourAria.push(fiveHourResetText, fiveHourCountdown);
+  $$('[data-header-quota="five-hour"]').forEach((link) => { link.setAttribute("aria-label", fiveHourAria.join(", ")); });
   $$('[data-nav-section="quota"]').forEach((link) => {
     const parts = [t("nav.quota")];
-    if (quota) parts.push(remainingText);
+    if (weeklyQuota) parts.push(remainingText);
     if (resetText) parts.push(resetText);
     if (countdownText) parts.push(countdownText);
-    link.setAttribute("aria-label", parts.join(", "));
+    link.setAttribute("aria-label", [...parts, ...fiveHourAria].join(", "));
   });
-  state.renderedQuotaReset = quota?.resetsAt || null;
+  state.renderedQuotaReset = weeklyQuota?.resetsAt || null;
 }
 
 function renderQuotaPage() {
@@ -860,7 +893,7 @@ function quotaForecastSvg(forecast) {
   const endpoint = projectedPoint || actualPoint;
   const dangerClass = projectedPoint && forecast.expectedFinalPercent > 100 ? " is-over" : "";
   const grid = yTicks.map((tick) => `<g class="quota-axis-grid"><line x1="${plot.left}" y1="${y(tick)}" x2="${width - plot.right}" y2="${y(tick)}"></line><text x="${plot.left - 10}" y="${y(tick) + 4}" text-anchor="end">${escapeHtml(forecastPercent(tick))} %</text></g>`).join("");
-  const timeTicks = xTicks.map((tick, index) => `<g class="quota-axis-time${index > 0 && index < xTicks.length - 1 ? " is-minor" : ""}"><line x1="${x(new Date(tick).toISOString())}" y1="${plot.top}" x2="${x(new Date(tick).toISOString())}" y2="${height - plot.bottom}"></line><text x="${x(new Date(tick).toISOString())}" y="${height - 14}" text-anchor="${index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle"}">${escapeHtml(forecastDateLabel(tick))}</text></g>`).join("");
+  const timeTicks = xTicks.map((tick, index) => `<g class="quota-axis-time${index > 0 && index < xTicks.length - 1 ? " is-minor" : ""}"><line x1="${x(new Date(tick).toISOString())}" y1="${plot.top}" x2="${x(new Date(tick).toISOString())}" y2="${height - plot.bottom}"></line><text x="${x(new Date(tick).toISOString())}" y="${height - 14}" text-anchor="middle">${escapeHtml(forecastDateLabel(tick))}</text></g>`).join("");
   const description = forecast.completed
     ? `${t("quota.actual")} · ${forecastPercent(actualPoint.percent)} %`
     : t(forecast.marginPercent >= 0 ? "quota.margin" : "quota.overrun", { n: forecastPercent(Math.abs(forecast.marginPercent)) });
@@ -1151,19 +1184,18 @@ function renderSettingsNodes() {
 function bucketsFor(calls, period = state.period) {
   if (period === "quota-hourly") return hourlyBucketsFor(calls, weeklyRange());
   if (period === "custom" || period === "week") return customBucketsFor(calls, period === "week" ? weeklyRange() : dateRange());
+  if (period === "12m" || period === "all") return monthlyChartBuckets(calls, period, locale(), new Date());
   const byHour = period === "today";
-  const byMonth = period === "all";
-  const count = byHour ? 24 : period === "7d" ? 7 : period === "30d" ? 30 : 12;
+  const count = byHour ? 24 : period === "7d" ? 7 : 30;
   const buckets = [];
   const now = new Date();
   for (let i = count - 1; i >= 0; i--) {
     const start = new Date(now);
     if (byHour) { start.setHours(now.getHours() - i, 0, 0, 0); }
-    else if (byMonth) { start.setMonth(now.getMonth() - i, 1); start.setHours(0, 0, 0, 0); }
     else { start.setDate(now.getDate() - i); start.setHours(0, 0, 0, 0); }
     const end = new Date(start);
-    if (byHour) end.setHours(end.getHours() + 1); else if (byMonth) end.setMonth(end.getMonth() + 1); else end.setDate(end.getDate() + 1);
-    buckets.push({ start, end, label: byHour ? `${String(start.getHours()).padStart(2, "0")}h` : byMonth ? start.toLocaleDateString(locale(), { month: "short" }) : start.toLocaleDateString(locale(), { day: "2-digit", month: count > 7 ? "2-digit" : "short" }), granularity: byHour ? "hour" : byMonth ? "month" : "day", calls: [] });
+    if (byHour) end.setHours(end.getHours() + 1); else end.setDate(end.getDate() + 1);
+    buckets.push({ start, end, label: byHour ? `${String(start.getHours()).padStart(2, "0")}h` : start.toLocaleDateString(locale(), { day: "2-digit", month: count > 7 ? "2-digit" : "short" }), granularity: byHour ? "hour" : "day", calls: [] });
   }
   for (const call of calls) {
     const time = Date.parse(call.timestamp); const bucket = buckets.find((item) => time >= item.start && time < item.end); if (bucket) bucket.calls.push(call);
@@ -1227,11 +1259,15 @@ function renderCostChart(calls, target = "#costChart", period = state.period) {
   const sourceBuckets = zoom
     ? chartDrilldownBuckets(calls, zoom, zoom.granularity, locale())
     : bucketsFor(calls, period);
+  const monthly = sourceBuckets.length > 0 && sourceBuckets.every((bucket) => bucket.granularity === "month");
+  host.classList.toggle("is-monthly", monthly);
   const buckets = sourceBuckets.map((bucket) => ({ ...bucket, cost: costOfCalls(bucket.calls) }));
   const max = Math.max(0.0001, ...buckets.map((bucket) => bucket.cost.cost));
   const labelTarget = period === "quota-hourly"
     ? Math.max(2, Math.min(8, Math.floor(host.clientWidth / 140)))
-    : 8;
+    : monthly ? Math.max(2, Math.min(8, Math.floor(host.clientWidth / 80))) : 8;
+  const monthlyLabelCount = Math.min(buckets.length, labelTarget);
+  const monthlyLabels = new Set(Array.from({ length: monthlyLabelCount }, (_, index) => Math.round(index * (buckets.length - 1) / Math.max(1, monthlyLabelCount - 1))));
   const context = zoom ? chartZoomContext(zoom) : "";
   const toolbar = zoom ? `<div class="chart-zoom-toolbar"><button type="button" class="chart-zoom-back">← ${escapeHtml(t("chart.zoomBack"))}</button><strong>${escapeHtml(context)}</strong></div>` : "";
   host.innerHTML = toolbar + buckets.map((bucket, index) => {
@@ -1240,7 +1276,7 @@ function renderCostChart(calls, target = "#costChart", period = state.period) {
       { key: "cached", value: bucket.cost.cachedInputCost },
       { key: "output", value: bucket.cost.outputCost },
     ], max);
-    const showLabel = buckets.length <= 12 || index % Math.ceil(buckets.length / labelTarget) === 0;
+    const showLabel = monthly ? monthlyLabels.has(index) : buckets.length <= 12 || index % Math.ceil(buckets.length / labelTarget) === 0;
     const detail = `${bucket.label} · ${formatCost(bucket.cost.cost)}`;
     const drillable = Boolean(nextChartGranularity(bucket.granularity));
     const drillLabel = t("chart.zoomInto", { label: bucket.label });

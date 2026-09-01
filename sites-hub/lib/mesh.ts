@@ -105,7 +105,7 @@ export function normalizeAlias(value: unknown): string {
 
 export function validatePayload(value: unknown): asserts value is Record<string, unknown> & { upserts: Record<string, unknown>[]; removals: string[] } {
   const payload = value as Record<string, unknown>;
-  const payloadKeys = new Set(["kind", "snapshotVersion", "analyzerVersion", "generatedAt", "privacy", "quota", "quotaHistory", "upserts", "removals"]);
+  const payloadKeys = new Set(["kind", "snapshotVersion", "analyzerVersion", "generatedAt", "privacy", "shortQuota", "quota", "quotaHistory", "upserts", "removals"]);
   const sessionKeys = new Set(["id", "sourceSessionId", "nodeId", "nodeAlias", "title", "startedAt", "updatedAt", "cwd", "projectName", "projectGitHubUrl", "source", "cliVersion", "modelProvider", "models", "exchanges", "completedExchanges", "userMessages", "assistantMessages", "modelCalls", "durationMs", "usage", "turns", "calls", "parseErrors"]);
   const turnKeys = new Set(["id", "startedAt", "completedAt", "durationMs", "model", "effort", "serviceTier", "calls", "usage"]);
   const callKeys = new Set(["timestamp", "turnId", "model", "effort", "serviceTier", "usage"]);
@@ -135,6 +135,7 @@ export function validatePayload(value: unknown): asserts value is Record<string,
   const privacy = payload.privacy as Record<string, unknown>;
   if (!hasOnly(privacy, new Set(["projectMode", "includeTitles"])) || !["hash", "basename", "full"].includes(String(privacy.projectMode)) || typeof privacy.includeTitles !== "boolean") throw new Error("Profil de confidentialité invalide.");
   if (payload.quota != null && !hasOnly(payload.quota, quotaKeys)) throw new Error("Quota Mesh invalide.");
+  if (payload.shortQuota != null && !hasOnly(payload.shortQuota, quotaKeys)) throw new Error("Quota court Mesh invalide.");
   if (payload.quotaHistory !== undefined && (!Array.isArray(payload.quotaHistory) || payload.quotaHistory.length > 500 || !payload.quotaHistory.every((quota) => hasOnly(quota, quotaKeys)))) throw new Error("Historique de quota Mesh invalide.");
 }
 
