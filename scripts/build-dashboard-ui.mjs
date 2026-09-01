@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DASHBOARD_ASSETS } from "./dashboard-assets.mjs";
+import { cliText } from "../src/cli-locale.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
@@ -34,5 +35,5 @@ export async function buildDashboardUi() {
 const invokedUrl = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 if (invokedUrl === import.meta.url) {
   const result = await buildDashboardUi();
-  console.log(`Bundle UI généré dans ${path.relative(projectRoot, result.target)} (${result.count} fichiers).`);
+  console.log(cliText("bundleBuilt", path.relative(projectRoot, result.target), result.count));
 }

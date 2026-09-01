@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { cliText } from "./cli-locale.mjs";
 
 const SNAPSHOT_VERSION = 1;
 
@@ -104,11 +105,11 @@ export class UsageStore {
       if (this.onUpdated) {
         Promise.resolve(this.onUpdated(data)).catch((error) => this.logger.warn(`Synchronisation secondaire impossible : ${error.message}`));
       }
-      this.logger.log(`Données actualisées en ${Date.now() - startedAt} ms (${data.sessions.length} sessions).`);
+      this.logger.log(cliText("refreshed", Date.now() - startedAt, data.sessions.length));
       return data;
     } catch (error) {
       this.lastError = error.message;
-      this.logger.error(`Actualisation impossible : ${error.message}`);
+      this.logger.error(cliText("refreshFailed", error.message));
       if (this.cache.data) return this.cache.data;
       throw error;
     }
