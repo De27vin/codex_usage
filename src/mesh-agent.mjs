@@ -193,6 +193,7 @@ export class MeshAgent {
     if (batches.length === 0) batches.push({ upserts: [], removals });
 
     let accepted = 0;
+    let includeShortQuota = true;
     for (const batch of batches) {
       const payload = {
         kind: "sync",
@@ -200,12 +201,23 @@ export class MeshAgent {
         analyzerVersion: sanitized.analyzerVersion,
         generatedAt: sanitized.generatedAt,
         privacy: sanitized.privacy,
+        ...(includeShortQuota ? { shortQuota: sanitized.shortQuota } : {}),
         quota: sanitized.quota,
         quotaHistory: sanitized.quotaHistory,
         upserts: batch.upserts,
         removals: batch.removals,
       };
-      await this.sendSigned("/api/mesh/ingest", payload);
+      try {
+        await this.sendSigned("/api/mesh/ingest", payload);
+      } catch (error) {
+        if (!includeShortQuota || error.status !== 400 || error.message !== "Charge utile Mesh invalide."
+          || (error.code !== undefined && error.code !== "mesh_invalid")) throw error;
+        // Legacy hubs reject unknown fields. Retry only this schema error with
+        // a fresh signed sequence, and probe support again on the next sync.
+        includeShortQuota = false;
+        delete payload.shortQuota;
+        await this.sendSigned("/api/mesh/ingest", payload);
+      }
       accepted += batch.upserts.length;
     }
 

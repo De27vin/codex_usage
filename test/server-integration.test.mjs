@@ -67,7 +67,7 @@ test("local HTTP adapter serves the generated UI and common API", async () => {
     assert.deepEqual(capabilities.sources, ["local"]);
     assert.equal(usage.apiVersion, 1);
     assert.deepEqual(usage.sessions, []);
-    assert.match(html, /Quota hebdomadaire/);
+    assert.match(html, /Hebdomadaire/);
     assert.match(manifestResponse.headers.get("content-type") ?? "", /^application\/manifest\+json\b/i);
     assert.match(iconResponse.headers.get("content-type") ?? "", /^image\/png\b/i);
   } finally {

@@ -23,10 +23,10 @@ function httpError(message, status = 400, code = "mesh_invalid") {
   return error;
 }
 
-function latestQuota(nodes) {
+function latestQuota(nodes, key = "quota") {
   return Object.values(nodes)
-    .filter((node) => node.quota)
-    .map((node) => ({ ...node.quota, nodeId: node.id, nodeAlias: node.alias, receivedAt: node.lastSeen }))
+    .filter((node) => node[key])
+    .map((node) => ({ ...node[key], nodeId: node.id, nodeAlias: node.alias, receivedAt: node.lastSeen }))
     .sort((left, right) => String(right.observedAt || right.receivedAt).localeCompare(String(left.observedAt || left.receivedAt)))[0] || null;
 }
 
@@ -105,6 +105,7 @@ export class MeshHubStore {
       lastSequence: 0,
       revokedAt: null,
       privacy: { projectMode: "hash", includeTitles: false },
+      shortQuota: null,
       quota: null,
       quotaHistory: [],
       sessions: {},
@@ -128,6 +129,7 @@ export class MeshHubStore {
     node.lastGeneratedAt = payload.generatedAt;
     node.analyzerVersion = payload.analyzerVersion;
     node.privacy = payload.privacy;
+    if (payload.shortQuota !== undefined) node.shortQuota = payload.shortQuota;
     if (payload.quota !== undefined) node.quota = payload.quota;
     if (payload.quotaHistory !== undefined) node.quotaHistory = payload.quotaHistory;
     await this.persist();
@@ -180,6 +182,7 @@ export class MeshHubStore {
       analyzerVersion: Math.max(0, ...active.map((node) => Number(node.analyzerVersion) || 0)),
       generatedAt: new Date().toISOString(),
       source: { mode: "mesh", sessionsAvailable: active.length > 0, archivedSessionsAvailable: false, sessionIndexAvailable: false },
+      fiveHourQuota: latestQuota(this.state.nodes, "shortQuota"),
       weeklyQuota: latestQuota(this.state.nodes),
       weeklyQuotaHistory: latestQuotaHistory(this.state.nodes),
       nodes: this.nodes(),

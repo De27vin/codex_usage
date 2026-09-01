@@ -1,6 +1,6 @@
 # Supervise the reporting agent on Windows
 
-The supported Windows setup runs `agent.mjs` behind a persistent PowerShell supervisor and a per-user Task Scheduler task named `CodexUsageMesh` by default. It is designed for laptops that sleep for long periods: the supervisor survives an ordinary sleep, the task is also triggered by the Windows resume event, and a non-zero Node.js exit is restarted after 30 seconds.
+The supported Windows setup runs `agent.mjs` behind a persistent PowerShell supervisor and a per-user Task Scheduler task named `CodexUsageMesh` by default. It runs without a visible console window. The supervisor survives an ordinary sleep, the task is also triggered by the Windows resume event, and a non-zero Node.js exit is restarted after 30 seconds. An independent one-minute trigger restarts supervision if the whole task stops, including after a console interruption.
 
 The installer operates only on the local scheduled task and local files. It never calls the hub administration or revocation APIs, so installing, updating, or uninstalling one PC does not delete or change any other registered machine.
 
@@ -50,20 +50,30 @@ Use `-Alias "Nom lisible"` only on the first association. Otherwise the Windows 
 
 ## Task and recovery behavior
 
-`CodexUsageMesh` has two triggers:
+`CodexUsageMesh` has three triggers:
 
 - opening a session for the installing Windows user;
-- Windows `Microsoft-Windows-Power-Troubleshooter` event ID 1, emitted after resume from sleep.
+- Windows `Microsoft-Windows-Power-Troubleshooter` event ID 1, emitted after resume from sleep;
+- every minute, to restart a stopped task even when Windows does not retry its last exit code.
 
-The task uses `MultipleInstancesPolicy=IgnoreNew`, unlimited execution time, `StartWhenAvailable`, and Task Scheduler restart-on-failure. The generated supervisor adds a named mutex as a second singleton boundary. A resume trigger cannot create a parallel supervisor when the logon instance is still alive.
+The task uses `MultipleInstancesPolicy=IgnoreNew`, unlimited execution time, `StartWhenAvailable`, and Task Scheduler restart-on-failure. The generated supervisor adds a named mutex as a second singleton boundary. Before each launch it also checks for an existing Node agent using the same script and state, since stopping a scheduled supervisor can leave its child alive. It waits for that child to exit instead of starting a second writer. A resume trigger cannot create a parallel supervisor when the logon instance is still alive.
 
-The supervisor launches the repository's current `agent.mjs`. When Node exits with a non-zero code, it logs the code and restart number, waits 30 seconds, and launches it again. A zero exit is treated as an intentional stop and is not looped.
+The task starts PowerShell with `-WindowStyle Hidden`; no terminal needs to stay open. The supervisor launches the repository's current `agent.mjs`. When Node exits with a non-zero code, it logs the code and restart number, waits 30 seconds, and launches it again. A zero exit ends the supervisor; the next periodic trigger restores the task. A deliberate pause therefore requires disabling the task before stopping it:
+
+```powershell
+Disable-ScheduledTask -TaskName CodexUsageMesh -TaskPath '\'
+Stop-ScheduledTask -TaskName CodexUsageMesh -TaskPath '\'
+```
+
+To resume, enable and start that same task. The periodic trigger respects disabled tasks and never overrides an explicit pause.
 
 Logs are UTF-8 without BOM, with an ISO-8601 timestamp on every line:
 
 ```powershell
-Get-Content "$env:LOCALAPPDATA\CodexUsageMesh\logs\supervisor.log" -Wait
+Get-Content '.\.cache\windows-agent\CodexUsageMesh.Supervisor.log' -Wait
 ```
+
+Logs live beside the launcher in the repository cache; old logs under `%LOCALAPPDATA%\CodexUsageMesh\logs` are retained but no longer updated. The enrolled identity remains in `%LOCALAPPDATA%\CodexUsageMesh\mesh-agent.windows.json`.
 
 ## Diagnose
 
@@ -75,7 +85,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Instal
 
 The diagnostic verifies and reports:
 
-- task presence, current state, last result, logon trigger, and resume trigger;
+- task presence, current state, last result, logon/resume/recovery triggers, and hidden console configuration;
 - exactly one supervisor and one matching Node agent process;
 - enrolled state path and persisted hub URL;
 - `lastSyncAt`, its age, and whether it is newer than five minutes;
@@ -107,13 +117,14 @@ If the checkout moved, run `Update` from the new checkout. The task and launcher
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\Install-CodexUsageMesh.ps1 -Action Uninstall
 ```
 
-This stops and unregisters only `CodexUsageMesh` and removes only the generated supervisor file. It deliberately keeps the state and logs under `%LOCALAPPDATA%\CodexUsageMesh`, and it does not revoke or delete any hub node. Reinstalling later therefore uses the same association.
+This stops and unregisters only `CodexUsageMesh` and removes only the generated supervisor file. It deliberately keeps the state under `%LOCALAPPDATA%\CodexUsageMesh` and the logs in the repository cache, and it does not revoke or delete any hub node. Reinstalling later therefore uses the same association.
 
 For permanent removal, first revoke this exact machine from `/admin`. Only after checking the exact local target should its retained state be deleted. Revocation and state deletion are intentionally separate from the normal uninstall command.
 
 ## Troubleshooting
 
 - **The task is `Ready` instead of `Running`:** inspect the final supervisor log lines. A missing repository, Node executable, or state makes the supervisor exit non-zero and Task Scheduler retries it.
+- **The last result is `0xC000013A`:** the console was interrupted. Run `Update` to install the hidden action and one-minute recovery trigger; do not rely solely on restart-on-failure for this exit.
 - **The task is running but `AgentProcessCount` is zero:** the supervisor may be inside its 30-second backoff. The log contains the exit code and next attempt.
 - **The hub is unreachable:** verify the public ingress URL ending in `/healthz`; never configure the private Site URL or a Sites authorization token on a reporting machine.
 - **The state is reported incomplete:** the installer leaves it untouched. Restore the correct existing file or revoke only that machine and perform a deliberate new association.

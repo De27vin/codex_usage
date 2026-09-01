@@ -27,6 +27,16 @@ export function resolveDateRange(period, customRange, now = new Date()) {
   }
   const end = new Date(now);
   if (period === "all") return { start: new Date(0), end };
+  if (period === "12m") {
+    const start = new Date(now);
+    const day = start.getDate();
+    start.setDate(1);
+    start.setFullYear(start.getFullYear() - 1);
+    const lastDay = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+    start.setDate(Math.min(day, lastDay));
+    start.setHours(0, 0, 0, 0);
+    return { start, end };
+  }
   if (period === "today") {
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
