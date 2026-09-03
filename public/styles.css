@@ -220,7 +220,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   width: 470px;
   padding: 14px;
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
   gap: 10px;
   border: 1px solid var(--line-strong);
@@ -229,7 +229,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   box-shadow: 0 18px 42px rgba(0, 0, 0, .45), 0 0 24px rgba(201, 244, 109, .08);
 }
 .custom-range-panel[hidden] { display: none; }
-.custom-range-panel label:not(.custom-now) { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }
+.custom-range-field { min-width: 0; display: grid; gap: 6px; color: var(--muted); font-size: 11px; }
+.custom-range-field-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .custom-range-panel input[type="datetime-local"] {
   width: 100%;
   height: 34px;
@@ -242,8 +243,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   font-size: 12px;
 }
 .custom-range-panel input:disabled { opacity: .38; }
-.custom-now { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 4px; color: var(--text); font-size: 11px; white-space: nowrap; cursor: pointer; }
-.custom-now input { accent-color: var(--accent); }
+.custom-now { display: flex; align-items: center; gap: 5px; color: var(--text); font-size: 11px; white-space: nowrap; cursor: pointer; }
+.custom-now input { margin: 0; accent-color: var(--accent); }
 .data-mode-switch {
   display: flex;
   gap: 2px;
@@ -1167,7 +1168,7 @@ dialog::backdrop { background: #000b; backdrop-filter: blur(3px); }
   .data-mode-switch { grid-column: 1 / 3; grid-row: 1; justify-self: start; }
   .actions { grid-column: 3; grid-row: 1; }
   .periods button { padding: 7px 8px; font-size: 11px; }
-  .custom-range-panel { position: fixed; top: 66px; right: 12px; left: 12px; width: auto; grid-template-columns: 1fr 1fr auto; }
+  .custom-range-panel { position: fixed; top: 66px; right: 12px; left: 12px; width: auto; }
   .refresh-button { width: 36px; overflow: hidden; padding: 0 9px; font-size: 0; }
   .refresh-button span:first-child { font-size: 17px; }
   .refresh-button span:last-child { display: none; }
