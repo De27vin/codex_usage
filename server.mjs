@@ -110,7 +110,9 @@ async function routeApi(request, response, url) {
       sendJson(response, 404, { error: "Desktop helper unavailable.", code: "desktop_helper_unavailable" });
       return true;
     }
-    process.send({ type: "open-mini-quota" });
+    const fiveHour = url.searchParams.get("fiveHour") !== "0";
+    const weekly = url.searchParams.get("weekly") !== "0";
+    process.send({ type: "open-mini-quota", preferences: { fiveHour: fiveHour || !weekly, weekly } });
     sendJson(response, 202, { ok: true });
     return true;
   }

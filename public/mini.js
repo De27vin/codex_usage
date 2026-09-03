@@ -7,6 +7,13 @@ const text = {
 const localeText = text[language.toLowerCase().split(/[-_]/)[0]] || text.en;
 document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = localeText[node.dataset.i18n] || node.textContent; });
 const $ = (selector, root = document) => root.querySelector(selector);
+const params = new URLSearchParams(window.location.search);
+let showFiveHour = params.get("fiveHour") !== "0";
+let showWeekly = params.get("weekly") !== "0";
+if (!showFiveHour && !showWeekly) showFiveHour = true;
+$("[data-quota='five-hour']").hidden = !showFiveHour;
+$("[data-quota='weekly']").hidden = !showWeekly;
+document.documentElement.dataset.quotaCount = showFiveHour && showWeekly ? "2" : "1";
 const countdown = (value) => {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return "—";

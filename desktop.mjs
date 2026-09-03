@@ -17,7 +17,7 @@ function startServer() {
     stdio: ["inherit", "inherit", "inherit", "ipc"],
   });
   serverProcess.on("message", (message) => {
-    if (message?.type === "open-mini-quota") openMiniWindow();
+    if (message?.type === "open-mini-quota") openMiniWindow(message.preferences);
   });
   serverProcess.once("exit", (code, signal) => {
     if (!app.isQuitting) {
@@ -27,14 +27,20 @@ function startServer() {
   });
 }
 
-function openMiniWindow() {
+function openMiniWindow(preferences = {}) {
+  const fiveHour = preferences.fiveHour !== false;
+  const weekly = preferences.weekly !== false;
+  const query = new URLSearchParams({ fiveHour: fiveHour ? "1" : "0", weekly: weekly ? "1" : "0" });
+  const width = fiveHour && weekly ? 410 : 220;
   if (miniWindow && !miniWindow.isDestroyed()) {
+    miniWindow.setSize(width, 180);
+    void miniWindow.loadURL(`${dashboardUrl}/mini.html?${query}`);
     miniWindow.show();
     miniWindow.focus();
     return;
   }
   miniWindow = new BrowserWindow({
-    width: 410,
+    width,
     height: 180,
     resizable: true,
     minimizable: true,
@@ -45,12 +51,16 @@ function openMiniWindow() {
   });
   miniWindow.setAlwaysOnTop(true);
   miniWindow.on("closed", () => { miniWindow = null; });
-  void miniWindow.loadURL(`${dashboardUrl}/mini.html`);
+  void miniWindow.loadURL(`${dashboardUrl}/mini.html?${query}`);
 }
 
 app.whenReady().then(() => {
   app.dock?.hide();
   startServer();
+});
+
+app.on("window-all-closed", () => {
+  // The helper and its dashboard server stay available after the mini window closes.
 });
 
 app.on("before-quit", () => {

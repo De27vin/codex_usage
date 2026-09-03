@@ -16,8 +16,12 @@ test("desktop helper keeps the server local and opens an always-on-top mini wind
   assert.match(desktop, /nodeIntegration: false/);
   assert.match(desktop, /sandbox: true/);
   assert.match(desktop, /message\?\.type === "open-mini-quota"/);
-  assert.match(server, /process\.send\(\{ type: "open-mini-quota" \}\)/);
+  assert.match(desktop, /fiveHour && weekly \? 410 : 220/);
+  assert.match(desktop, /app\.on\("window-all-closed"/);
+  assert.match(server, /process\.send\(\{ type: "open-mini-quota", preferences/);
   assert.match(browser, /runtimeCapabilities\.desktopHelper/);
+  assert.match(browser, /MINI_QUOTA_VISIBILITY_KEY/);
+  assert.match(browser, /fiveHour: miniQuotaVisibility\.fiveHour \? "1" : "0"/);
   assert.match(packageJson.scripts.start, /electron desktop\.mjs/);
   assert.match(packageJson.scripts["start:browser"], /node server\.mjs/);
 });
