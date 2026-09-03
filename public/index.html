@@ -76,9 +76,17 @@
         <div class="custom-period">
           <button id="customPeriodButton" data-period="custom" data-i18n="period.custom" aria-expanded="false" aria-controls="customRangePanel">Personnalisé</button>
           <div id="customRangePanel" class="custom-range-panel" hidden>
-            <label><span data-i18n="period.customStart">Début</span><input id="customStart" type="datetime-local" required></label>
-            <label><span data-i18n="period.customEnd">Fin</span><input id="customEnd" type="datetime-local"></label>
-            <label class="custom-now"><input id="customEndNow" type="checkbox"><span data-i18n="period.now">Maintenant</span></label>
+            <div class="custom-range-field">
+              <label for="customStart" data-i18n="period.customStart">Début</label>
+              <input id="customStart" type="datetime-local" required>
+            </div>
+            <div class="custom-range-field">
+              <div class="custom-range-field-heading">
+                <label for="customEnd" data-i18n="period.customEnd">Fin</label>
+                <label class="custom-now"><input id="customEndNow" type="checkbox" aria-controls="customEnd"><span data-i18n="period.now">Maintenant</span></label>
+              </div>
+              <input id="customEnd" type="datetime-local">
+            </div>
           </div>
         </div>
       </nav>
