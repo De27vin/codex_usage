@@ -1733,6 +1733,13 @@ $$('[data-close-drawer]').forEach((element) => element.addEventListener("click",
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") { $("#detailDrawer").setAttribute("aria-hidden", "true"); document.body.classList.remove("drawer-open"); } });
 $("#projectSearch").addEventListener("input", (event) => { state.projectQuery = event.target.value; if (state.data) renderProjectsPage(overviewSessions()); });
 $("#settingsPricingButton").addEventListener("click", openPricing);
+$("#miniQuotaButton")?.addEventListener("click", () => {
+  const popup = window.open("./mini.html", "codexQuotaMini", "popup=yes,width=410,height=180,resizable=yes");
+  if (popup) {
+    popup.resizeTo(410, 180);
+    popup.focus();
+  }
+});
 $("#quotaPeriodSelect").addEventListener("change", (event) => { state.selectedQuotaReset = event.target.value || null; render(); });
 $("#quotaPrevious").addEventListener("click", () => {
   const periods = quotaPeriods();

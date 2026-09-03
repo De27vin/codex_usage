@@ -107,6 +107,8 @@ npm start
 
 Open [http://127.0.0.1:4317](http://127.0.0.1:4317). With no `MESH_HUB_URL`, the GUI stays local and does not start outbound reporting.
 
+For a compact quota-only view, open [http://127.0.0.1:4317/mini.html](http://127.0.0.1:4317/mini.html) after starting the dashboard. It shows the five-hour and weekly remaining percentages, reset dates, and live countdowns.
+
 Direct mode reads only these paths under the current user's Codex directory:
 
 ```text
