@@ -7,6 +7,7 @@ import { createDashboardCapabilities } from "./src/dashboard-contract.mjs";
 import { MeshHubStore } from "./src/mesh-hub-store.mjs";
 import { serializePublicUsage } from "./src/public-usage.mjs";
 import { createUsageCollector } from "./src/usage-collector.mjs";
+import { cliText } from "./src/cli-locale.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = process.env.DASHBOARD_ASSETS_PATH || path.join(root, "dist", "dashboard");
@@ -187,9 +188,9 @@ const server = createServer(async (request, response) => {
 usageCollector?.start();
 
 server.listen(port, host, () => {
-  console.log(`Local Usage Dashboard for Codex: http://${host}:${port}`);
-  if (dashboardMode === "hub") console.log("Mode Mesh Hub — seules les métadonnées signées et minimisées sont acceptées.");
-  else console.log(usageCollector.meshAgent ? "Mode local + collecteur Mesh sortant activé." : "Lecture locale uniquement — aucune donnée n’est envoyée ailleurs.");
+  console.log(cliText("dashboardReady", `http://${host}:${port}`));
+  if (dashboardMode === "hub") console.log(cliText("meshHub"));
+  else console.log(usageCollector.meshAgent ? cliText("meshEnabled") : cliText("localOnly"));
 });
 
 function shutdown() {

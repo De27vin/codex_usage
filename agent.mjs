@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AGENT_HELP, parseAgentOptions } from "./src/agent-options.mjs";
+import { cliText } from "./src/cli-locale.mjs";
 import { createUsageCollector } from "./src/usage-collector.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -12,20 +13,20 @@ if (options.help) {
 const collector = await createUsageCollector({ root, env: options.env });
 
 if (!collector.meshAgent) {
-  throw new Error("Cette machine n’est pas encore associée. Copiez la commande générée dans la page /admin.");
+  throw new Error(cliText("agentNotAssociated"));
 }
 
 if (options.once) {
   const data = await collector.refresh();
   await collector.meshAgent.sync(data);
   collector.stop();
-  console.log(`Synchronisation ponctuelle terminée pour ${collector.meshAgent.status().alias}.`);
+  console.log(cliText("oneShotComplete", collector.meshAgent.status().alias));
   process.exit(0);
 }
 
 collector.start({ unrefTimer: false });
 await collector.refresh();
-console.log(`Collecteur Codex actif pour ${collector.meshAgent.status().alias}. Aucune interface locale n’est servie.`);
+console.log(cliText("agentActive", collector.meshAgent.status().alias));
 
 function shutdown() {
   collector.stop();
