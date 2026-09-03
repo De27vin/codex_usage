@@ -188,7 +188,7 @@ const server = createServer(async (request, response) => {
 usageCollector?.start();
 
 server.listen(port, host, () => {
-  console.log(`Local Usage Dashboard for Codex: http://${host}:${port}`);
+  console.log(cliText("dashboardReady", `http://${host}:${port}`));
   if (dashboardMode === "hub") console.log(cliText("meshHub"));
   else console.log(usageCollector.meshAgent ? cliText("meshEnabled") : cliText("localOnly"));
 });

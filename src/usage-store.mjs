@@ -38,7 +38,7 @@ export class UsageStore {
       this.lastSuccessAt = snapshot.savedAt || snapshot.data.generatedAt;
       return true;
     } catch (error) {
-      if (error.code !== "ENOENT") this.logger.warn(`Instantané ignoré : ${error.message}`);
+      if (error.code !== "ENOENT") this.logger.warn(cliText("snapshotIgnored", error.message));
       return false;
     }
   }
@@ -88,7 +88,7 @@ export class UsageStore {
       if (!force && this.cache.data && currentFingerprint === this.cache.fingerprint) {
         this.lastError = null;
         if (this.onUpdated) {
-          Promise.resolve(this.onUpdated(this.cache.data)).catch((error) => this.logger.warn(`Synchronisation secondaire impossible : ${error.message}`));
+          Promise.resolve(this.onUpdated(this.cache.data)).catch((error) => this.logger.warn(cliText("secondarySyncFailed", error.message)));
         }
         return this.cache.data;
       }
@@ -103,7 +103,7 @@ export class UsageStore {
       this.lastError = null;
       await this.persist();
       if (this.onUpdated) {
-        Promise.resolve(this.onUpdated(data)).catch((error) => this.logger.warn(`Synchronisation secondaire impossible : ${error.message}`));
+        Promise.resolve(this.onUpdated(data)).catch((error) => this.logger.warn(cliText("secondarySyncFailed", error.message)));
       }
       this.logger.log(cliText("refreshed", Date.now() - startedAt, data.sessions.length));
       return data;

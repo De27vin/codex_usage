@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { cliText } from "./cli-locale.mjs";
 import {
   normalizeNodeAlias,
   publicKeyFingerprint,
@@ -55,7 +56,7 @@ export class MeshHubStore {
       this.state = state;
       return true;
     } catch (error) {
-      if (error.code !== "ENOENT") this.logger.warn(`Stockage Mesh ignoré : ${error.message}`);
+      if (error.code !== "ENOENT") this.logger.warn(cliText("meshStorageIgnored", error.message));
       return false;
     }
   }

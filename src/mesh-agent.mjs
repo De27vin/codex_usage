@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import path from "node:path";
+import { cliText } from "./cli-locale.mjs";
 import { createPrivacySalt, sanitizeUsageForMesh, sessionHashes } from "./mesh-privacy.mjs";
 import { canonicalJson, createSignedEnvelope, generateNodeIdentity, normalizeNodeAlias } from "./mesh-protocol.mjs";
 
@@ -224,7 +225,7 @@ export class MeshAgent {
     this.state.sessionHashes = nextHashes;
     this.state.lastSyncAt = new Date().toISOString();
     await this.persist();
-    this.logger.log(`Mesh synchronisé : ${accepted} session(s) modifiée(s), ${removals.length} suppression(s).`);
+    this.logger.log(cliText("meshSynchronized", accepted, removals.length));
     return { accepted, removed: removals.length, batches: batches.length, lastSyncAt: this.state.lastSyncAt };
   }
 

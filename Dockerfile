@@ -3,7 +3,7 @@ FROM node:22-alpine AS ui-build
 WORKDIR /build
 COPY public ./public
 COPY scripts ./scripts
-COPY src ./src
+COPY src/cli-locale.mjs ./src/cli-locale.mjs
 RUN node scripts/build-dashboard-ui.mjs
 
 FROM node:22-alpine AS runtime
