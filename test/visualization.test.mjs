@@ -95,6 +95,13 @@ test("quota navigation arrows do not depend on mobile font glyph support", () =>
   assert.match(styles, /\.quota-history-button:disabled\s*\{[^}]*opacity:\s*\.58;/);
 });
 
+test("custom range keeps the Now control beside the End label", () => {
+  assert.match(markup, /class="custom-range-field-heading"[\s\S]*for="customEnd"[^>]*data-i18n="period\.customEnd"[\s\S]*class="custom-now"[\s\S]*id="customEndNow"[^>]*aria-controls="customEnd"/);
+  assert.match(styles, /\.custom-range-panel\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /\.custom-range-field-heading\s*\{[^}]*display:\s*flex;[^}]*justify-content:\s*space-between;/);
+  assert.doesNotMatch(styles, /grid-template-columns:\s*1fr 1fr auto;/);
+});
+
 test("header quotas show exact reset dates, live countdowns, and clock-driven rollover", () => {
   assert.equal((markup.match(/data-weekly-header-countdown/g) || []).length, 1);
   assert.equal((markup.match(/data-five-hour-countdown/g) || []).length, 1);
