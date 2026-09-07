@@ -35,7 +35,7 @@ if (isHostedRuntime()) document.documentElement.dataset.hosted = "true";
 const I18N = {
   fr: {
     "app.title": "Local Usage — Coûts et activité", "brand.tagline": "pour Codex · local", "license.independent": "Projet libre et indépendant pour les données locales Codex.", "license.source": "Code source", "nav.period": "Période", "nav.main": "Navigation principale", "nav.overview": "Aperçu", "nav.projects": "Projets", "nav.quota": "Quota hebdomadaire", "nav.conversations": "Conversations", "nav.settings": "Réglages", "action.language": "Langue", "action.close": "Fermer", "summary.label": "Synthèse de la période", "summary.kpis": "Indicateurs principaux",
-    "period.today": "Aujourd’hui", "period.7d": "7 jours", "period.30d": "30 jours", "period.12m": "12 mois", "period.all": "Tout", "period.custom": "Personnalisé", "period.customStart": "Début", "period.customEnd": "Fin", "period.now": "Maintenant",
+    "period.weeklyQuota": "WeeklyQuota", "period.weeklyQuotaLabel": "WeeklyQuota", "period.today": "Aujourd’hui", "period.7d": "7 jours", "period.30d": "30 jours", "period.12m": "12 mois", "period.all": "Tout", "period.custom": "Personnalisé", "period.customStart": "Début", "period.customEnd": "Fin", "period.now": "Maintenant",
     "period.todayLabel": "Aujourd’hui", "period.7dLabel": "7 derniers jours", "period.30dLabel": "30 derniers jours", "period.12mLabel": "12 derniers mois", "period.allLabel": "Tout l’historique local", "period.customLabel": "Du {start} au {end}",
     "action.refresh": "Actualiser", "action.pricing": "Configurer les tarifs", "hero.title": "Coûts et activité", "hero.privacy": "Données locales uniquement",
     "section.load": "ACTIVITÉ", "section.distribution": "RÉPARTITION", "section.rhythm": "RYTHME", "section.signal": "SIGNAL", "section.conversations": "DÉTAIL",
@@ -56,7 +56,7 @@ const I18N = {
   },
   en: {
     "app.title": "Local Usage — Costs and activity", "brand.tagline": "for Codex · local", "license.independent": "Independent free software for local Codex data.", "license.source": "Source code", "nav.period": "Period", "nav.main": "Main navigation", "nav.overview": "Overview", "nav.projects": "Projects", "nav.quota": "Weekly Quota", "nav.conversations": "Conversations", "nav.settings": "Settings", "action.language": "Language", "action.close": "Close", "summary.label": "Period summary", "summary.kpis": "Key indicators",
-    "period.today": "Today", "period.7d": "7 days", "period.30d": "30 days", "period.12m": "12 months", "period.all": "All", "period.custom": "Custom", "period.customStart": "Start", "period.customEnd": "End", "period.now": "Now",
+    "period.weeklyQuota": "WeeklyQuota", "period.weeklyQuotaLabel": "WeeklyQuota", "period.today": "Today", "period.7d": "7 days", "period.30d": "30 days", "period.12m": "12 months", "period.all": "All", "period.custom": "Custom", "period.customStart": "Start", "period.customEnd": "End", "period.now": "Now",
     "period.todayLabel": "Today", "period.7dLabel": "Last 7 days", "period.30dLabel": "Last 30 days", "period.12mLabel": "Last 12 months", "period.allLabel": "All local history", "period.customLabel": "From {start} to {end}",
     "action.refresh": "Refresh", "action.pricing": "Configure prices", "hero.title": "Costs and activity", "hero.privacy": "Local data only",
     "section.load": "ACTIVITY", "section.distribution": "DISTRIBUTION", "section.rhythm": "PACE", "section.signal": "SIGNAL", "section.conversations": "DETAIL",
@@ -79,7 +79,7 @@ const I18N = {
   },
   de: {
     "app.title": "Local Usage — Kosten und Aktivität", "brand.tagline": "für Codex · lokal", "license.independent": "Unabhängige freie Software für lokale Codex-Daten.", "license.source": "Quellcode", "nav.period": "Zeitraum", "nav.main": "Hauptnavigation", "nav.overview": "Übersicht", "nav.projects": "Projekte", "nav.quota": "Wochenkontingent", "nav.conversations": "Konversationen", "nav.settings": "Einstellungen", "action.language": "Sprache", "action.close": "Schließen", "summary.label": "Zusammenfassung des Zeitraums", "summary.kpis": "Wichtigste Kennzahlen",
-    "period.today": "Heute", "period.7d": "7 Tage", "period.30d": "30 Tage", "period.12m": "12 Monate", "period.all": "Alle", "period.custom": "Benutzerdefiniert", "period.customStart": "Beginn", "period.customEnd": "Ende", "period.now": "Jetzt",
+    "period.weeklyQuota": "WeeklyQuota", "period.weeklyQuotaLabel": "WeeklyQuota", "period.today": "Heute", "period.7d": "7 Tage", "period.30d": "30 Tage", "period.12m": "12 Monate", "period.all": "Alle", "period.custom": "Benutzerdefiniert", "period.customStart": "Beginn", "period.customEnd": "Ende", "period.now": "Jetzt",
     "period.todayLabel": "Heute", "period.7dLabel": "Letzte 7 Tage", "period.30dLabel": "Letzte 30 Tage", "period.12mLabel": "Letzte 12 Monate", "period.allLabel": "Gesamter lokaler Verlauf", "period.customLabel": "Von {start} bis {end}",
     "action.refresh": "Aktualisieren", "action.pricing": "Preise konfigurieren", "hero.title": "Kosten und Aktivität", "hero.privacy": "Nur lokale Daten",
     "section.load": "AKTIVITÄT", "section.distribution": "VERTEILUNG", "section.rhythm": "RHYTHMUS", "section.signal": "SIGNAL", "section.conversations": "DETAIL",
@@ -484,7 +484,8 @@ function dateRange() {
   if (state.transientRange) {
     return { start: new Date(state.transientRange.start), end: new Date(state.transientRange.end) };
   }
-  return resolveDateRange(state.period, state.customRange);
+  const now = new Date();
+  return resolveDateRange(state.period, state.customRange, now, quotaPeriods(now)[0]);
 }
 
 function inRange(timestamp, range = dateRange()) {
@@ -1229,7 +1230,7 @@ function renderSettingsNodes() {
 
 function bucketsFor(calls, period = state.period) {
   if (period === "quota-hourly") return hourlyBucketsFor(calls, weeklyRange());
-  if (period === "custom" || period === "week") return customBucketsFor(calls, period === "week" ? weeklyRange() : dateRange());
+  if (period === "custom" || period === "weeklyQuota" || period === "week") return customBucketsFor(calls, period === "week" ? weeklyRange() : dateRange());
   if (period === "12m" || period === "all") return monthlyChartBuckets(calls, period, locale(), new Date());
   const byHour = period === "today";
   const count = byHour ? 24 : period === "7d" ? 7 : 30;
@@ -1956,6 +1957,10 @@ function syncQuotaClock() {
   const currentReset = quotaPeriods()[0]?.resetsAt || null;
   const rolledOver = Boolean(state.renderedQuotaReset && currentReset && currentReset !== state.renderedQuotaReset);
   if (rolledOver && state.selectedQuotaReset === state.renderedQuotaReset) state.selectedQuotaReset = null;
+  if (rolledOver && state.period === "weeklyQuota") {
+    render();
+    return;
+  }
   if (rolledOver && state.view === "quota") {
     renderQuotaPage();
     renderFreshness();

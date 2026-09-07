@@ -20,7 +20,16 @@ export function normalizeCustomRange(value, now = new Date()) {
   return { start, end };
 }
 
-export function resolveDateRange(period, customRange, now = new Date()) {
+export function resolveDateRange(period, customRange, now = new Date(), quota = null) {
+  if (period === "weeklyQuota") {
+    const range = resolveWeeklyRange(quota, now);
+    const startsAt = Date.parse(quota?.startsAt);
+    const resetAt = Date.parse(quota?.endsAt || quota?.resetsAt);
+    if (Number.isFinite(startsAt) && startsAt <= now.getTime() && now.getTime() < resetAt) {
+      range.start = new Date(startsAt);
+    }
+    return range;
+  }
   if (period === "custom") {
     const custom = normalizeCustomRange(customRange, now);
     return { start: new Date(custom.start), end: custom.end === null ? null : new Date(custom.end) };
