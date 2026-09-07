@@ -27,8 +27,12 @@ function openMiniWindow(input = preferences) {
     });
     miniWindow.on("closed", () => { miniWindow = null; });
   } else miniWindow.setContentSize(width, 250);
-  void miniWindow.loadURL(`${address.url}/mini.html?${new URLSearchParams(preferences)}`).catch((error) => {
-    dialog.showErrorBox("Codex Usage", `Unable to open the quota window: ${error.message}`);
+  const window = miniWindow;
+  void window.loadURL(`${address.url}/mini.html?${new URLSearchParams(preferences)}`).catch((error) => {
+    // Closing/reopening while a navigation is pending aborts that navigation.
+    // A synchronous error box here would interrupt shutdown and orphan the app.
+    if (quitting || window.isDestroyed() || error.code === "ERR_ABORTED") return;
+    void dialog.showMessageBox(window, { type: "error", title: "Codex Usage", message: "Unable to open the quota window", detail: error.message });
   });
   miniWindow.show();
   miniWindow.focus();
@@ -114,7 +118,7 @@ else {
 }
 
 app.on("window-all-closed", () => { /* The tray keeps reopen and quit accessible. */ });
-app.on("activate", () => { if (ready) openMiniWindow(); });
+app.on("activate", () => { if (ready && !quitting) openMiniWindow(); });
 app.on("before-quit", () => {
   quitting = true;
   serverProcess?.kill();

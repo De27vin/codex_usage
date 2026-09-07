@@ -43,7 +43,19 @@ async function setup() {
   return { directory, env, url: `http://127.0.0.1:${port}` };
 }
 async function launch(fixture) {
-  return electron.launch({ executablePath, args: [path.join(root, "desktop"), `--user-data-dir=${path.join(fixture.directory, "profile")}`], env: fixture.env, timeout: 30_000 });
+  console.log("Launching desktop smoke fixture");
+  const application = await electron.launch({ executablePath, args: [path.join(root, "desktop"), `--user-data-dir=${path.join(fixture.directory, "profile")}`], env: fixture.env, timeout: 30_000 });
+  application.context().setDefaultTimeout(10_000);
+  application.process().stderr.on("data", (chunk) => { if (process.env.CI) process.stderr.write(chunk); });
+  return application;
+}
+async function closeApplication(application) {
+  let timeout;
+  try {
+    await Promise.race([application.close(), new Promise((_, reject) => {
+      timeout = setTimeout(() => { application.process().kill(); reject(new Error("Desktop did not close within 15 seconds")); }, 15_000);
+    })]);
+  } finally { clearTimeout(timeout); }
 }
 async function menuClick(application, label, childLabel) {
   await application.evaluate(({ Menu }, { label, childLabel }) => {
@@ -58,7 +70,9 @@ test("native window, preferences, network errors, reopen and owned-server shutdo
   const application = await launch(fixture);
   let closed = false;
   try {
-    const page = await application.firstWindow();
+    const page = await application.firstWindow({ timeout: 15_000 });
+    console.log("Native window created");
+    await page.clock.install();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.waitForSelector("#miniStatus");
@@ -79,7 +93,8 @@ test("native window, preferences, network errors, reopen and owned-server shutdo
     });
     assert.equal((await fetch(`${fixture.url}/api/desktop/mini?source=centralized&language=fr&theme=blue&fiveHour=1&weekly=1`, { method: "POST", headers: { "X-Codex-Desktop": "1" } })).status, 202);
     await page.waitForURL(/source=centralized/);
-    await page.waitForFunction(() => document.querySelector("[data-remaining]").textContent === "42%");
+    await page.waitForFunction(() => document.querySelector("[data-remaining]").textContent === "42%", null, { polling: 100, timeout: 10_000 });
+    console.log("Native data rendered");
     assert.equal(requests.at(-1), "centralized");
     assert.equal(await page.locator("html").getAttribute("lang"), "fr");
     assert.equal(await page.locator("html").getAttribute("data-theme"), "blue");
@@ -87,25 +102,25 @@ test("native window, preferences, network errors, reopen and owned-server shutdo
     const layout = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: innerWidth }));
     assert.ok(layout.scroll <= layout.width);
     offline = true;
-    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-    await page.waitForFunction(() => document.querySelector("#miniStatus").textContent.includes("Connexion perdue"));
+    await page.clock.runFor(15_000);
+    await page.waitForFunction(() => document.querySelector("#miniStatus").textContent.includes("Connexion perdue"), null, { polling: 100, timeout: 10_000 });
     assert.equal(await page.locator("[data-remaining]").first().textContent(), "42%");
     await page.screenshot({ path: path.join(fixture.directory, "offline.png") });
     offline = false;
-    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-    await page.waitForFunction(() => !document.querySelector("#miniStatus").textContent.includes("Connexion perdue"));
+    await page.clock.runFor(15_000);
+    await page.waitForFunction(() => !document.querySelector("#miniStatus").textContent.includes("Connexion perdue"), null, { polling: 100, timeout: 10_000 });
     await menuClick(application, "Visible quotas", "Weekly");
-    await page.waitForFunction(() => document.querySelector("[data-quota='five-hour']").hidden);
+    await page.waitForFunction(() => document.querySelector("[data-quota='five-hour']").hidden, null, { polling: 100, timeout: 10_000 });
     await page.screenshot({ path: path.join(fixture.directory, "weekly.png") });
     assert.deepEqual(errors, []);
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
     await eventually(async () => (await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)) === 0);
     await menuClick(application, "Open mini quota window");
     await eventually(async () => (await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)) === 1);
-    await application.close(); closed = true;
+    await closeApplication(application); closed = true;
     await eventually(async () => { try { await fetch(`${fixture.url}/api/health`); return false; } catch { return true; } });
     console.log(`Native screenshots: ${fixture.directory}`);
-  } finally { if (!closed) await application.close(); }
+  } finally { if (!closed) await closeApplication(application); }
 });
 
 test("desktop reuses an independent server and leaves it running on quit", { timeout: 60_000 }, async () => {
@@ -115,13 +130,13 @@ test("desktop reuses an independent server and leaves it running on quit", { tim
   try {
     await eventually(async () => { try { return (await fetch(`${fixture.url}/api/capabilities`)).ok; } catch { return false; } });
     application = await launch(fixture);
-    await application.firstWindow();
+    await application.firstWindow({ timeout: 15_000 });
     assert.equal((await fetch(`${fixture.url}/api/capabilities`).then((r) => r.json())).desktopHelper, false);
-    await application.close(); application = null;
+    await closeApplication(application); application = null;
     assert.equal((await fetch(`${fixture.url}/api/health`)).ok, true);
     assert.equal(server.exitCode, null);
   } finally {
-    if (application) await application.close();
+    if (application) await closeApplication(application);
     const exited = once(server, "exit");
     server.kill();
     await exited;

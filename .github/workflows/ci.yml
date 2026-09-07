@@ -23,6 +23,7 @@ jobs:
       - name: Build shared UI for native smoke test
         run: npm run build:ui
       - name: Validate native window and server lifecycle
+        timeout-minutes: 4
         run: npm test --prefix desktop
 
   test:
