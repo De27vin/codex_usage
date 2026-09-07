@@ -1,3 +1,4 @@
+import { miniPreferences } from "./src/desktop-options.mjs";
 import { timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -106,13 +107,16 @@ async function routeApi(request, response, url) {
   if (url.pathname === "/api/desktop/mini" && request.method === "POST") {
     const remoteAddress = request.socket.remoteAddress || "";
     const localRequest = remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
-    if (!localRequest || typeof process.send !== "function") {
+    if (!localRequest || !process.connected || process.env.CODEX_DESKTOP_HELPER !== "1") {
       sendJson(response, 404, { error: "Desktop helper unavailable.", code: "desktop_helper_unavailable" });
       return true;
     }
-    const fiveHour = url.searchParams.get("fiveHour") !== "0";
-    const weekly = url.searchParams.get("weekly") !== "0";
-    process.send({ type: "open-mini-quota", preferences: { fiveHour: fiveHour || !weekly, weekly } });
+    if (request.headers["x-codex-desktop"] !== "1" || (request.headers.origin && request.headers.origin !== `http://${request.headers.host}`)) {
+      sendJson(response, 403, { error: "Same-origin desktop request required." });
+      return true;
+    }
+    const preferences = miniPreferences(Object.fromEntries(url.searchParams));
+    process.send({ type: "open-mini-quota", preferences });
     sendJson(response, 202, { ok: true });
     return true;
   }
@@ -120,7 +124,7 @@ async function routeApi(request, response, url) {
     const capabilities = dashboardMode === "hub"
       ? createDashboardCapabilities({ runtime: "hub", sources: ["centralized"], defaultSource: "centralized", canRefresh: false })
       : usageCollector.capabilities();
-    sendJson(response, 200, { ...capabilities, desktopHelper: typeof process.send === "function" });
+    sendJson(response, 200, { ...capabilities, desktopHelper: process.env.CODEX_DESKTOP_HELPER === "1" && Boolean(process.connected) });
     return true;
   }
   if (url.pathname === "/api/usage" && request.method === "GET") {
@@ -213,3 +217,6 @@ function shutdown() {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+// The optional helper owns this process; a crash or forced exit must not leave
+// its collector behind. Independent browser/agent processes have no IPC parent.
+if (process.env.CODEX_DESKTOP_HELPER === "1" && process.connected) process.once("disconnect", shutdown);

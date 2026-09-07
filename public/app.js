@@ -1,10 +1,11 @@
+import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText } from "./quota-display.js";
 import { codexCreditsOfCalls, fastMultiplierFor, usageProfilesOfCalls } from "./usage-pricing.js";
 import { apiCostOfCalls, apiPriceFor, mergeApiPricing } from "./api-pricing.js";
 import { PRICING_CATALOG } from "./pricing-catalog.js";
 import { PRICING_I18N, createPricingReport, pricingCatalogLabel, pricingHistoryMarkup } from "./pricing-ui.js";
 import { ADDITIONAL_I18N, LOCALE_TAGS, THEME_I18N, resolveLanguage } from "./translations.js";
 import { chartDrilldownBuckets, chartDrilldownFilterRange, monthlyChartBuckets, nextChartGranularity, percentageOf, stackedChartSegments } from "./visualization.js";
-import { latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, theoreticalWeeklyQuotaPeriod, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
+import { latestTimestamp, normalizeCustomRange, resolveDateRange, resolveWeeklyRange, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
 import { buildQuotaForecast, estimateQuotaCapacityCredits, interpolateForecastPercent, weeklyForecastTicks } from "./quota-forecast.js";
 import { OVERVIEW_PROJECT_LIMIT, projectIdentity } from "./project-identity.js";
 
@@ -619,12 +620,7 @@ function overviewSessions() {
 }
 
 function quotaPeriods(now = new Date()) {
-  const history = state.data?.weeklyQuotaHistory;
-  const observed = Array.isArray(history) && history.length
-    ? history
-    : state.data?.weeklyQuota ? [state.data.weeklyQuota] : [];
-  const theoretical = theoreticalWeeklyQuotaPeriod(observed[0], now);
-  return theoretical ? [theoretical, ...observed] : observed;
+  return weeklyQuotaPeriods(state.data, now);
 }
 
 function selectedQuota() {
@@ -798,21 +794,8 @@ function currentQuotaResetAt() {
 }
 
 function formatQuotaCountdown(resetAt, now = new Date()) {
-  const parts = quotaCountdownParts(resetAt, now);
-  if (!parts) return "";
-  const unit = (value, name, padded = false) => new Intl.NumberFormat(locale(), {
-    style: "unit",
-    unit: name,
-    unitDisplay: "narrow",
-    useGrouping: false,
-    minimumIntegerDigits: padded ? 2 : 1,
-  }).format(value);
-  const values = [];
-  if (parts.days) values.push(unit(parts.days, "day"));
-  if (parts.days || parts.hours) values.push(unit(parts.hours, "hour", Boolean(parts.days)));
-  if (parts.days || parts.hours || parts.minutes) values.push(unit(parts.minutes, "minute", Boolean(parts.days || parts.hours)));
-  values.push(unit(parts.seconds, "second", Boolean(parts.days || parts.hours || parts.minutes)));
-  return `${t("quota.reset")} · ${values.join(" ")}`;
+  const countdown = quotaCountdownText(resetAt, locale(), now);
+  return countdown ? `${t("quota.reset")} · ${countdown}` : "";
 }
 
 function renderQuotaNav() {
@@ -833,13 +816,12 @@ function renderQuotaNav() {
   $$("[data-weekly-header-reset]").forEach((element) => { element.textContent = resetText || "—"; });
   $$("[data-weekly-header-countdown]").forEach((element) => { element.textContent = countdownText || "—"; });
   const fiveHourQuota = state.data?.fiveHourQuota || null;
-  const fiveHourResetTime = Date.parse(fiveHourQuota?.resetsAt);
-  const fiveHourExpired = Number.isFinite(fiveHourResetTime) && fiveHourResetTime <= Date.now();
-  // An expired observation cannot describe the next five-hour window.
-  const fiveHourRemaining = !fiveHourExpired && Number.isFinite(fiveHourQuota?.remainingPercent)
-    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(fiveHourQuota.remainingPercent) })
+  const shortQuota = shortQuotaDisplay(fiveHourQuota);
+  const fiveHourExpired = shortQuota.expired;
+  const fiveHourRemaining = Number.isFinite(shortQuota.remainingPercent)
+    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(shortQuota.remainingPercent) })
     : "—";
-  const fiveHourResetAt = !fiveHourExpired && Number.isFinite(fiveHourResetTime) ? new Date(fiveHourResetTime) : null;
+  const fiveHourResetAt = shortQuota.resetsAt;
   const fiveHourResetText = fiveHourResetAt ? fiveHourResetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "—";
   const fiveHourCountdown = fiveHourExpired ? t("quota.awaitingShort") : fiveHourResetAt ? formatQuotaCountdown(fiveHourResetAt) : "—";
   $$("[data-five-hour-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
@@ -1867,14 +1849,17 @@ $("#miniQuotaButton")?.addEventListener("click", () => {
   const query = new URLSearchParams({
     fiveHour: miniQuotaVisibility.fiveHour ? "1" : "0",
     weekly: miniQuotaVisibility.weekly ? "1" : "0",
+    source: state.dataMode, language: state.language, theme: globalThis.CodexUsageThemes.getTheme(),
   });
-  const width = miniQuotaVisibility.fiveHour && miniQuotaVisibility.weekly ? 410 : 220;
+  const width = miniQuotaVisibility.fiveHour && miniQuotaVisibility.weekly ? 480 : 280;
   if (runtimeCapabilities.desktopHelper) {
-    void fetch(`/api/desktop/mini?${query}`, { method: "POST", cache: "no-store" });
+    void fetch(`/api/desktop/mini?${query}`, { method: "POST", cache: "no-store", headers: { "X-Codex-Desktop": "1" }, signal: AbortSignal.timeout(5000) })
+      .then((response) => { if (!response.ok) throw new Error(); })
+      .catch(() => { $("#miniQuotaOptionStatus").textContent = t("load.errorToast"); });
     return;
   }
-  const popup = window.open(`./mini.html?${query}`, "codexQuotaMini", `popup=yes,width=${width},height=180,resizable=yes`);
-  if (popup) { popup.resizeTo(width, 180); popup.focus(); }
+  const popup = window.open(`./mini.html?${query}`, "codexQuotaMini", `popup=yes,width=${width},height=250,resizable=yes`);
+  if (popup) { popup.resizeTo(width, 250); popup.focus(); }
 });
 $("#quotaPeriodSelect").addEventListener("change", (event) => { state.selectedQuotaReset = event.target.value || null; render(); });
 $("#quotaPrevious").addEventListener("click", () => {

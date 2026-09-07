@@ -1,53 +1,86 @@
-const language = navigator.languages?.[0] || navigator.language || "en";
-const text = {
-  en: { fiveHour: "5 hours", weekly: "Weekly", error: "Unable to load quota data" },
-  fr: { fiveHour: "5 heures", weekly: "Hebdomadaire", error: "Impossible de charger les quotas" },
-  de: { fiveHour: "5 Stunden", weekly: "Wöchentlich", error: "Kontingente konnten nicht geladen werden" },
+import { LOCALE_TAGS, resolveLanguage } from "./translations.js";
+import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText } from "./quota-display.js";
+import { createMiniData, selectMiniSource } from "./mini-data.js";
+
+const params = new URLSearchParams(location.search);
+const stored = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+let language = resolveLanguage(params.get("language") || stored("codex-usage-language") || navigator.language) || "en";
+const messages = {
+  en: { fiveHour: "5 hours", weekly: "Weekly", loading: "Loading…", offline: "Connection lost", stale: "Old observation", updated: "Checked", observed: "Observed", waiting: "Awaiting observation", local: "Local", centralized: "Centralized", remaining: "remaining" },
+  fr: { fiveHour: "5 heures", weekly: "Hebdomadaire", loading: "Chargement…", offline: "Connexion perdue", stale: "Observation ancienne", updated: "Vérifié", observed: "Observé", waiting: "En attente d’observation", local: "Local", centralized: "Centralisé", remaining: "restant" },
+  de: { fiveHour: "5 Stunden", weekly: "Wöchentlich", loading: "Laden…", offline: "Verbindung verloren", stale: "Alte Beobachtung", updated: "Geprüft", observed: "Beobachtet", waiting: "Warte auf Beobachtung", local: "Lokal", centralized: "Zentral", remaining: "verbleibend" },
+  es: { fiveHour: "5 horas", weekly: "Semanal", loading: "Cargando…", offline: "Conexión perdida", stale: "Observación antigua", updated: "Comprobado", observed: "Observado", waiting: "Esperando observación", local: "Local", centralized: "Centralizado", remaining: "restante" },
+  it: { fiveHour: "5 ore", weekly: "Settimanale", loading: "Caricamento…", offline: "Connessione persa", stale: "Osservazione precedente", updated: "Verificato", observed: "Osservato", waiting: "In attesa di osservazione", local: "Locale", centralized: "Centralizzato", remaining: "rimanente" },
+  pt: { fiveHour: "5 horas", weekly: "Semanal", loading: "A carregar…", offline: "Ligação perdida", stale: "Observação antiga", updated: "Verificado", observed: "Observado", waiting: "A aguardar observação", local: "Local", centralized: "Centralizado", remaining: "restante" },
+  ja: { fiveHour: "5時間", weekly: "週間", loading: "読み込み中…", offline: "接続が切れました", stale: "古い観測値", updated: "確認", observed: "観測", waiting: "観測待ち", local: "ローカル", centralized: "集中管理", remaining: "残り" },
+  ru: { fiveHour: "5 часов", weekly: "Неделя", loading: "Загрузка…", offline: "Соединение потеряно", stale: "Устаревшие данные", updated: "Проверено", observed: "Наблюдение", waiting: "Ожидание данных", local: "Локально", centralized: "Централизованно", remaining: "осталось" },
+  zh: { fiveHour: "5 小时", weekly: "每周", loading: "加载中…", offline: "连接已断开", stale: "旧观测数据", updated: "已检查", observed: "观测时间", waiting: "等待观测", local: "本地", centralized: "集中", remaining: "剩余" },
 };
-const localeText = text[language.toLowerCase().split(/[-_]/)[0]] || text.en;
-document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = localeText[node.dataset.i18n] || node.textContent; });
+const t = (key) => (messages[language] || messages.en)[key];
+const locale = () => LOCALE_TAGS[language] || "en-GB";
 const $ = (selector, root = document) => root.querySelector(selector);
-const params = new URLSearchParams(window.location.search);
 let showFiveHour = params.get("fiveHour") !== "0";
-let showWeekly = params.get("weekly") !== "0";
+const showWeekly = params.get("weekly") !== "0";
 if (!showFiveHour && !showWeekly) showFiveHour = true;
 $("[data-quota='five-hour']").hidden = !showFiveHour;
 $("[data-quota='weekly']").hidden = !showWeekly;
 document.documentElement.dataset.quotaCount = showFiveHour && showWeekly ? "2" : "1";
-const countdown = (value) => {
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return "—";
-  const seconds = Math.max(0, Math.floor((timestamp - Date.now()) / 1_000));
-  const days = Math.floor(seconds / 86_400);
-  const hours = Math.floor(seconds % 86_400 / 3_600);
-  const minutes = Math.floor(seconds % 3_600 / 60);
-  const secs = seconds % 60;
-  return days ? `${days}d ${hours}h ${minutes}m` : `${hours}h ${minutes}m ${secs}s`;
+if (params.has("theme")) globalThis.CodexUsageThemes.setTheme(params.get("theme"));
+let capabilities;
+let failedInitialization = false;
+const timeText = (value) => {
+  const date = value == null ? null : new Date(value);
+  return date && Number.isFinite(date.getTime()) ? date.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "—";
 };
-const resetText = (value) => {
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toLocaleString(language, { dateStyle: "medium", timeStyle: "short" }) : "—";
-};
-let data = null;
+
 function render() {
+  document.documentElement.lang = language;
+  document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); });
+  const { data, error, receivedAt, source } = model.snapshot;
+  const weekly = weeklyQuotaPeriods(data)[0];
   for (const section of document.querySelectorAll("[data-quota]")) {
-    const quota = data?.[section.dataset.quota === "five-hour" ? "fiveHourQuota" : "weeklyQuota"];
-    const remaining = Number.isFinite(quota?.remainingPercent) ? `${new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(quota.remainingPercent)}%` : "—";
-    $("[data-remaining]", section).textContent = remaining;
-    $("[data-reset]", section).textContent = resetText(quota?.resetsAt);
-    $("[data-countdown]", section).textContent = countdown(quota?.resetsAt);
+    const isWeekly = section.dataset.quota === "weekly";
+    const quota = isWeekly ? weekly : data?.fiveHourQuota;
+    const short = shortQuotaDisplay(quota);
+    const waiting = Boolean(quota?.theoretical || short.expired);
+    const remaining = waiting ? null : short.remainingPercent;
+    $("[data-remaining]", section).textContent = Number.isFinite(remaining)
+      ? `${new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(remaining)}%` : "—";
+    $("[data-reset]", section).textContent = timeText(isWeekly ? quota?.resetsAt : short.resetsAt);
+    $("[data-countdown]", section).textContent = waiting ? t("waiting") : quotaCountdownText(short.resetsAt, locale()) || "—";
+    const observation = quota?.observedAt;
+    const old = Number.isFinite(Date.parse(observation)) && Date.now() - Date.parse(observation) > 5 * 60_000;
+    $("[data-observed]", section).textContent = `${old ? t("stale") : t("observed")} · ${timeText(observation)}`;
+    section.dataset.stale = String(old || error);
   }
+  const status = error || failedInitialization ? t("offline") : !data ? t("loading") : `${t("updated")} · ${timeText(receivedAt)}`;
+  $("#miniStatus").textContent = `${source ? t(source) + " · " : ""}${status}`;
+  $("#miniStatus").dataset.error = String(error || failedInitialization);
 }
+
+async function fetchJson(url) {
+  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+const model = createMiniData({ fetchJson, onChange: render });
 async function load() {
   try {
-    const response = await fetch("./api/usage?source=local", { cache: "no-store" });
-    if (!response.ok) throw new Error();
-    data = await response.json();
-    render();
-  } catch {
-    document.title = localeText.error;
-  }
+    if (!capabilities) capabilities = await fetchJson("./api/capabilities");
+    const requested = params.get("source") || stored("codex-usage-data-mode");
+    model.setSource(selectMiniSource(capabilities, requested));
+    failedInitialization = false;
+    await model.load();
+  } catch { failedInitialization = true; render(); }
 }
-load();
-setInterval(() => { render(); load(); }, 30_000);
-setInterval(render, 1_000);
+globalThis.addEventListener("storage", (event) => {
+  if (event.key === "codex-usage-language" && event.newValue) language = resolveLanguage(event.newValue) || "en";
+  if (event.key === "codex-usage-data-mode") { params.delete("source"); void load(); }
+  render();
+});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) void load(); });
+render();
+void load();
+const poll = setInterval(() => { void load(); }, 15_000);
+const clock = setInterval(render, 1_000);
+globalThis.addEventListener("pagehide", () => { clearInterval(poll); clearInterval(clock); }, { once: true });
