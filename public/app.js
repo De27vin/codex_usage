@@ -1,10 +1,11 @@
+import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText } from "./quota-display.js";
 import { codexCreditsOfCalls, fastMultiplierFor, usageProfilesOfCalls } from "./usage-pricing.js";
 import { apiCostOfCalls, apiPriceFor, mergeApiPricing } from "./api-pricing.js";
 import { PRICING_CATALOG } from "./pricing-catalog.js";
 import { PRICING_I18N, createPricingReport, pricingCatalogLabel, pricingHistoryMarkup } from "./pricing-ui.js";
 import { ADDITIONAL_I18N, LOCALE_TAGS, THEME_I18N, resolveLanguage } from "./translations.js";
 import { chartDrilldownBuckets, chartDrilldownFilterRange, monthlyChartBuckets, nextChartGranularity, percentageOf, stackedChartSegments } from "./visualization.js";
-import { latestTimestamp, normalizeCustomRange, quotaCountdownParts, resolveDateRange, resolveWeeklyRange, theoreticalWeeklyQuotaPeriod, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
+import { latestTimestamp, normalizeCustomRange, resolveDateRange, resolveWeeklyRange, timestampInRange, toDateTimeLocalValue } from "./date-range.js";
 import { buildQuotaForecast, estimateQuotaCapacityCredits, interpolateForecastPercent, weeklyForecastTicks } from "./quota-forecast.js";
 import { OVERVIEW_PROJECT_LIMIT, projectIdentity } from "./project-identity.js";
 
@@ -16,6 +17,7 @@ const USAGE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
 const POLL_INTERVAL_MS = 15_000;
 const CUSTOM_RANGE_KEY = "codex-usage-custom-range";
 const DATA_MODE_KEY = "codex-usage-data-mode";
+const MINI_QUOTA_VISIBILITY_KEY = "codex-usage-mini-quota-visibility-v1";
 const HOSTED_RUNTIME_HINT = new URLSearchParams(location.search).get("hosted") === "1";
 let runtimeCapabilities = {
   apiVersion: 1,
@@ -23,6 +25,7 @@ let runtimeCapabilities = {
   sources: HOSTED_RUNTIME_HINT ? ["centralized"] : ["local", "centralized"],
   defaultSource: HOSTED_RUNTIME_HINT ? "centralized" : "local",
   canRefresh: true,
+  desktopHelper: false,
   adminUrl: HOSTED_RUNTIME_HINT ? "/admin" : null,
 };
 const isHostedRuntime = () => ["hosted", "hub"].includes(runtimeCapabilities.runtime);
@@ -225,6 +228,13 @@ const QUOTA_HEADER_I18N = {
 };
 for (const [language, messages] of Object.entries(QUOTA_HEADER_I18N)) Object.assign(I18N[language], messages);
 
+const MINI_QUOTA_I18N = {
+  fr: { "settings.miniQuotaTitle": "Fenêtre de quotas miniature", "settings.miniQuotaCopy": "Choisissez les limites à afficher, puis ouvrez la fenêtre compacte et déplaçable.", "settings.miniQuotaOptions": "Limites de quota visibles", "settings.showFiveHour": "Afficher l’utilisation sur 5 heures", "settings.showWeekly": "Afficher l’utilisation hebdomadaire", "settings.openMiniQuota": "Ouvrir la fenêtre de quotas", "settings.oneQuotaRequired": "Au moins une limite doit rester visible." },
+  en: { "settings.miniQuotaTitle": "Mini quota window", "settings.miniQuotaCopy": "Choose which usage limits appear, then open the compact movable window.", "settings.miniQuotaOptions": "Visible quota limits", "settings.showFiveHour": "Show 5-hour usage", "settings.showWeekly": "Show weekly usage", "settings.openMiniQuota": "Open mini quota window", "settings.oneQuotaRequired": "At least one usage limit must remain visible." },
+  de: { "settings.miniQuotaTitle": "Mini-Kontingentfenster", "settings.miniQuotaCopy": "Wählen Sie die angezeigten Nutzungslimits und öffnen Sie dann das kompakte, verschiebbare Fenster.", "settings.miniQuotaOptions": "Sichtbare Nutzungslimits", "settings.showFiveHour": "5-Stunden-Nutzung anzeigen", "settings.showWeekly": "Wöchentliche Nutzung anzeigen", "settings.openMiniQuota": "Mini-Kontingentfenster öffnen", "settings.oneQuotaRequired": "Mindestens ein Nutzungslimit muss sichtbar bleiben." },
+};
+for (const [language, messages] of Object.entries(MINI_QUOTA_I18N)) Object.assign(I18N[language], messages);
+
 const PWA_I18N = {
   fr: { "pwa.eyebrow": "APPLICATION", "pwa.title": "Installer sur ce téléphone", "pwa.copy": "Ajoutez Codex Usage à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.install": "Installer l’application", "pwa.ready": "L’application est prête à être installée.", "pwa.instructions": "Sur Android, ouvrez le menu du navigateur puis choisissez Installer l’application ou Ajouter à l’écran d’accueil si le bouton ne s’affiche pas.", "pwa.installed": "Codex Usage est installée sur cet appareil.", "pwa.dismissed": "L’installation a été annulée. Vous pouvez réessayer depuis le menu du navigateur.", "pwa.toastTitle": "Installer Codex Usage", "pwa.toastCopy": "Ajoutez le tableau de bord à votre écran d’accueil pour l’ouvrir comme une application.", "pwa.howTo": "Voir comment", "pwa.toastClose": "Masquer la proposition" },
   de: { "pwa.eyebrow": "ANWENDUNG", "pwa.title": "Auf diesem Telefon installieren", "pwa.copy": "Fügen Sie Codex Usage zum Startbildschirm hinzu und öffnen Sie es wie eine App.", "pwa.install": "App installieren", "pwa.ready": "Die App kann jetzt installiert werden.", "pwa.instructions": "Öffnen Sie unter Android das Browsermenü und wählen Sie App installieren oder Zum Startbildschirm hinzufügen, falls die Schaltfläche nicht erscheint.", "pwa.installed": "Codex Usage ist auf diesem Gerät installiert.", "pwa.dismissed": "Die Installation wurde abgebrochen. Sie können es über das Browsermenü erneut versuchen.", "pwa.toastTitle": "Codex Usage installieren", "pwa.toastCopy": "Fügen Sie das Dashboard zum Startbildschirm hinzu und öffnen Sie es wie eine App.", "pwa.howTo": "Anleitung", "pwa.toastClose": "Installationshinweis ausblenden" },
@@ -290,6 +300,31 @@ const formatDate = (value) => new Intl.DateTimeFormat(locale(), { day: "2-digit"
 
 const PWA_INSTALL_TOAST_DISMISSED_KEY = "codex-usage-pwa-install-toast-dismissed-v1";
 const PWA_INSTALLED_KEY = "codex-usage-pwa-installed";
+
+function loadMiniQuotaVisibility() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(MINI_QUOTA_VISIBILITY_KEY));
+    const fiveHour = stored?.fiveHour !== false;
+    const weekly = stored?.weekly !== false;
+    return fiveHour || weekly ? { fiveHour, weekly } : { fiveHour: true, weekly: false };
+  } catch { return { fiveHour: true, weekly: true }; }
+}
+
+const miniQuotaVisibility = loadMiniQuotaVisibility();
+
+function saveMiniQuotaVisibility() {
+  try { localStorage.setItem(MINI_QUOTA_VISIBILITY_KEY, JSON.stringify(miniQuotaVisibility)); }
+  catch { /* The choices remain active for this tab. */ }
+}
+
+function syncMiniQuotaVisibilityUi(message = "") {
+  const fiveHour = $("#miniQuotaFiveHour");
+  const weekly = $("#miniQuotaWeekly");
+  if (fiveHour) fiveHour.checked = miniQuotaVisibility.fiveHour;
+  if (weekly) weekly.checked = miniQuotaVisibility.weekly;
+  const status = $("#miniQuotaOptionStatus");
+  if (status) status.textContent = message;
+}
 
 function pwaPreference(key) {
   try { return localStorage.getItem(key) === "1"; }
@@ -585,12 +620,7 @@ function overviewSessions() {
 }
 
 function quotaPeriods(now = new Date()) {
-  const history = state.data?.weeklyQuotaHistory;
-  const observed = Array.isArray(history) && history.length
-    ? history
-    : state.data?.weeklyQuota ? [state.data.weeklyQuota] : [];
-  const theoretical = theoreticalWeeklyQuotaPeriod(observed[0], now);
-  return theoretical ? [theoretical, ...observed] : observed;
+  return weeklyQuotaPeriods(state.data, now);
 }
 
 function selectedQuota() {
@@ -764,21 +794,8 @@ function currentQuotaResetAt() {
 }
 
 function formatQuotaCountdown(resetAt, now = new Date()) {
-  const parts = quotaCountdownParts(resetAt, now);
-  if (!parts) return "";
-  const unit = (value, name, padded = false) => new Intl.NumberFormat(locale(), {
-    style: "unit",
-    unit: name,
-    unitDisplay: "narrow",
-    useGrouping: false,
-    minimumIntegerDigits: padded ? 2 : 1,
-  }).format(value);
-  const values = [];
-  if (parts.days) values.push(unit(parts.days, "day"));
-  if (parts.days || parts.hours) values.push(unit(parts.hours, "hour", Boolean(parts.days)));
-  if (parts.days || parts.hours || parts.minutes) values.push(unit(parts.minutes, "minute", Boolean(parts.days || parts.hours)));
-  values.push(unit(parts.seconds, "second", Boolean(parts.days || parts.hours || parts.minutes)));
-  return `${t("quota.reset")} · ${values.join(" ")}`;
+  const countdown = quotaCountdownText(resetAt, locale(), now);
+  return countdown ? `${t("quota.reset")} · ${countdown}` : "";
 }
 
 function renderQuotaNav() {
@@ -799,13 +816,12 @@ function renderQuotaNav() {
   $$("[data-weekly-header-reset]").forEach((element) => { element.textContent = resetText || "—"; });
   $$("[data-weekly-header-countdown]").forEach((element) => { element.textContent = countdownText || "—"; });
   const fiveHourQuota = state.data?.fiveHourQuota || null;
-  const fiveHourResetTime = Date.parse(fiveHourQuota?.resetsAt);
-  const fiveHourExpired = Number.isFinite(fiveHourResetTime) && fiveHourResetTime <= Date.now();
-  // An expired observation cannot describe the next five-hour window.
-  const fiveHourRemaining = !fiveHourExpired && Number.isFinite(fiveHourQuota?.remainingPercent)
-    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(fiveHourQuota.remainingPercent) })
+  const shortQuota = shortQuotaDisplay(fiveHourQuota);
+  const fiveHourExpired = shortQuota.expired;
+  const fiveHourRemaining = Number.isFinite(shortQuota.remainingPercent)
+    ? t("kpi.remaining", { n: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(shortQuota.remainingPercent) })
     : "—";
-  const fiveHourResetAt = !fiveHourExpired && Number.isFinite(fiveHourResetTime) ? new Date(fiveHourResetTime) : null;
+  const fiveHourResetAt = shortQuota.resetsAt;
   const fiveHourResetText = fiveHourResetAt ? fiveHourResetAt.toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }) : "—";
   const fiveHourCountdown = fiveHourExpired ? t("quota.awaitingShort") : fiveHourResetAt ? formatQuotaCountdown(fiveHourResetAt) : "—";
   $$("[data-five-hour-remaining]").forEach((element) => { element.textContent = fiveHourRemaining; });
@@ -1815,6 +1831,36 @@ $$('[data-close-drawer]').forEach((element) => element.addEventListener("click",
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") { $("#detailDrawer").setAttribute("aria-hidden", "true"); document.body.classList.remove("drawer-open"); } });
 $("#projectSearch").addEventListener("input", (event) => { state.projectQuery = event.target.value; if (state.data) renderProjectsPage(overviewSessions()); });
 $("#settingsPricingButton").addEventListener("click", openPricing);
+for (const [selector, key] of [["#miniQuotaFiveHour", "fiveHour"], ["#miniQuotaWeekly", "weekly"]]) {
+  $(selector)?.addEventListener("change", (event) => {
+    const otherKey = key === "fiveHour" ? "weekly" : "fiveHour";
+    if (!event.target.checked && !miniQuotaVisibility[otherKey]) {
+      event.target.checked = true;
+      syncMiniQuotaVisibilityUi(t("settings.oneQuotaRequired"));
+      return;
+    }
+    miniQuotaVisibility[key] = event.target.checked;
+    saveMiniQuotaVisibility();
+    syncMiniQuotaVisibilityUi();
+  });
+}
+syncMiniQuotaVisibilityUi();
+$("#miniQuotaButton")?.addEventListener("click", () => {
+  const query = new URLSearchParams({
+    fiveHour: miniQuotaVisibility.fiveHour ? "1" : "0",
+    weekly: miniQuotaVisibility.weekly ? "1" : "0",
+    source: state.dataMode, language: state.language, theme: globalThis.CodexUsageThemes.getTheme(),
+  });
+  const width = miniQuotaVisibility.fiveHour && miniQuotaVisibility.weekly ? 480 : 280;
+  if (runtimeCapabilities.desktopHelper) {
+    void fetch(`/api/desktop/mini?${query}`, { method: "POST", cache: "no-store", headers: { "X-Codex-Desktop": "1" }, signal: AbortSignal.timeout(5000) })
+      .then((response) => { if (!response.ok) throw new Error(); })
+      .catch(() => { $("#miniQuotaOptionStatus").textContent = t("load.errorToast"); });
+    return;
+  }
+  const popup = window.open(`./mini.html?${query}`, "codexQuotaMini", `popup=yes,width=${width},height=250,resizable=yes`);
+  if (popup) { popup.resizeTo(width, 250); popup.focus(); }
+});
 $("#quotaPeriodSelect").addEventListener("change", (event) => { state.selectedQuotaReset = event.target.value || null; render(); });
 $("#quotaPrevious").addEventListener("click", () => {
   const periods = quotaPeriods();

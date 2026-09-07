@@ -21,3 +21,6 @@ session_index.jsonl
 *.jks
 credentials*.json
 service-account*.json
+
+# Optional native desktop helper is not part of container builds.
+desktop

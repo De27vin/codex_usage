@@ -119,6 +119,37 @@ Direct mode reads only these paths under the current user's Codex directory:
 
 It does not authenticate with OpenAI and never opens `auth.json`.
 
+## Optional mini quota window
+
+In dashboard Settings, choose the five-hour quota, weekly quota, or both, then open the compact window. It uses the selected data source, language and palette. The browser popup does not guarantee always-on-top behavior.
+
+For a native always-on-top window, install the **separate** desktop helper with Node.js 22.12 or newer:
+
+```bash
+npm ci --prefix desktop
+npm run start:desktop
+```
+
+Electron is confined to `desktop/`; `npm start`, the existing platform launchers, Docker and the headless agent keep their dependency-free behavior. The Electron binary downloads on first launch if necessary.
+
+The desktop helper opens the miniature immediately and respects `HOST` and `PORT`. It reuses a compatible dashboard already running at that address, or starts its own server. Closing the window keeps the tray menu available; **Quit Codex Usage desktop** stops only a server started by this helper. The application menu provides the same actions if the tray is unavailable.
+
+To display quotas from an existing local server, Docker deployment or hosted Site, run the helper **on your desktop computer** with the dashboard URL:
+
+```sh
+npm run start:desktop -- --url https://your-dashboard.example/
+```
+
+This mode starts no local collector or server. The miniature is bundled locally; the remote deployment does not need to provide `mini.html`. An accessible dashboard API works directly. For a private Mesh hub, open **Configure access**, create a one-time association code in the site's administration (the same operation used for an agent), and enter the supplied **hub address** and **code**. Use the public Mesh ingress address supplied by the administration, which can differ from the dashboard URL. No OpenAI login runs inside Electron.
+
+The helper stores its own Mesh identity in its operating-system user-data directory and reconnects on subsequent launches with the same dashboard URL. It only sends signed read requests, never collects or uploads sessions, and never shares the sending agent's identity. The current Mesh protocol grants the same node permissions as an agent; it does not issue a read-only credential. Revoke the **Quota desktop** node in the administration to withdraw access. The existing sending agent remains responsible for fresh observations.
+
+When the helper starts the server, the dashboard Settings button opens the native window and passes its preferences. When reusing an independently started server, that button remains a browser popup; use the desktop menu to reopen the native window. Browser and Electron preferences live in separate storage, so existing native windows do not live-sync preferences from an external browser. Reopening through Settings passes the latest selection to a helper-owned server.
+
+The miniature polls every 15 seconds and updates countdowns every second. It displays the last observation time separately from the last successful check, labels observations older than five minutes, and keeps the last values visibly marked on connection loss. Expired balances are not reused for a new quota window. A hosted dashboard selects its centralized source automatically.
+
+Desktop validation: after `npm run build:ui`, run `npm test --prefix desktop` in a graphical desktop session (or under Xvfb on Linux). The smoke tests use isolated profiles and empty Codex directories. Windows CI runs them alongside the existing checks; screenshots are saved in the temporary directory printed by the test. Native behavior on macOS and Linux still requires platform-specific verification.
+
 ## Docker
 
 The dashboard image runs as a non-root user with all Linux capabilities removed. Only the three required Codex sources are mounted read-only; the `.codex` root and `auth.json` are never mounted. A named volume preserves the derived snapshot and, when enabled, the reporting agent's device identity.

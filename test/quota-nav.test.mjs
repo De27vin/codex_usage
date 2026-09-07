@@ -1,3 +1,4 @@
+import { shortQuotaDisplay, quotaCountdownText } from "../public/quota-display.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -25,6 +26,8 @@ function navigation(quota) {
   };
   const context = vm.createContext({
     Date: ClockDate, Intl, Number, state, quotaCountdownParts,
+    shortQuotaDisplay: (quota) => shortQuotaDisplay(quota, now),
+    quotaCountdownText,
     locale: () => "en-GB", quotaPeriods: () => [weeklyQuota], currentQuotaResetAt: () => new ClockDate(weeklyQuota.resetsAt),
     t: (key, values) => key === "kpi.remaining" ? `${values.n}% remaining` : messages[key] || key,
     $$: (selector) => {
