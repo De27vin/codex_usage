@@ -27,6 +27,7 @@ $("[data-quota='weekly']").hidden = !showWeekly;
 document.documentElement.dataset.quotaCount = showFiveHour && showWeekly ? "2" : "1";
 if (params.has("theme")) globalThis.CodexUsageThemes.setTheme(params.get("theme"));
 let capabilities;
+let associationRequired = false;
 let failedInitialization = false;
 const timeText = (value) => {
   const date = value == null ? null : new Date(value);
@@ -53,12 +54,27 @@ function render() {
     $("[data-observed]", section).textContent = `${old ? t("stale") : t("observed")} · ${timeText(observation)}`;
     section.dataset.stale = String(old || error);
   }
-  const status = error || failedInitialization ? t("offline") : !data ? t("loading") : `${t("updated")} · ${timeText(receivedAt)}`;
+  $("#miniSignIn").hidden = !associationRequired;
+  $("#miniAccess").hidden = !globalThis.CodexDesktop;
+  $("#miniAccessTitle").textContent = language === "fr" ? "Configurer l’accès" : "Configure access";
+  $("#miniHubLabel").textContent = language === "fr" ? "Adresse du hub (fournie par le site)" : "Hub address (provided by the site)";
+  $("#miniCodeLabel").textContent = language === "fr" ? "Code d’association à usage unique" : "One-time association code";
+  $("#miniAccessHelp").textContent = language === "fr" ? "Dans l’administration du site, créez un code d’association comme pour votre agent. Copiez ici l’adresse du hub et le code. La fenêtre les utilise pour recevoir les quotas." : "Create an association code in the site administration, just as for your agent. Copy the hub address and code here to receive quotas.";
+  $("#miniSaveAccess").textContent = language === "fr" ? "Associer la fenêtre" : "Associate window";
+  $("#miniSignIn").textContent = language === "fr" ? "Ouvrir l’administration du site" : "Open site administration";
+  const status = associationRequired ? (language === "fr" ? "Association au site nécessaire" : "Site association required") : error || failedInitialization ? t("offline") : !data ? t("loading") : `${t("updated")} · ${timeText(receivedAt)}`;
   $("#miniStatus").textContent = `${source ? t(source) + " · " : ""}${status}`;
   $("#miniStatus").dataset.error = String(error || failedInitialization);
 }
 
 async function fetchJson(url) {
+  if (globalThis.CodexDesktop) {
+    const result = await globalThis.CodexDesktop.request(url.replace("./api/", ""));
+    associationRequired = Boolean(result.associationRequired);
+    if (associationRequired) model.clear();
+    if (!result.ok) throw new Error(associationRequired ? "Association required" : "Dashboard unavailable");
+    return result.data;
+  }
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
@@ -79,6 +95,24 @@ globalThis.addEventListener("storage", (event) => {
   render();
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) void load(); });
+$("#miniSignIn").addEventListener("click", () => { void globalThis.CodexDesktop?.openAdmin(); });
+$("#miniAccess").addEventListener("toggle", () => { void globalThis.CodexDesktop?.configurationSize($("#miniAccess").open); });
+$("#miniSaveAccess").addEventListener("click", async () => {
+  const input = $("#miniAssociationCode");
+  const code = input.value;
+  input.value = "";
+  $("#miniSaveAccess").disabled = true;
+  try {
+    await globalThis.CodexDesktop.associate($("#miniHubUrl").value.trim(), code);
+    $("#miniAccessError").textContent = "";
+    $("#miniAccess").open = false;
+    associationRequired = false;
+    capabilities = null;
+    model.clear();
+    await load();
+  } catch { $("#miniAccessError").textContent = language === "fr" ? "Association refusée. Vérifiez l’adresse du hub et utilisez un code valide non expiré." : "Association failed. Check the hub address and use a valid, unexpired code."; }
+  finally { $("#miniSaveAccess").disabled = false; }
+});
 render();
 void load();
 const poll = setInterval(() => { void load(); }, 15_000);

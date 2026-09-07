@@ -2,10 +2,13 @@ import { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog } from "elec
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRemoteDashboard } from "./remote.mjs";
 import { desktopAddress, miniPreferences } from "../src/desktop-options.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const address = desktopAddress();
+const address = desktopAddress(process.env, process.argv.slice(1));
+const miniFile = path.join(root, "dist", "dashboard", "mini.html");
+let remoteDashboard;
 let serverProcess, miniWindow, tray;
 let quitting = false;
 let ready = false;
@@ -19,16 +22,21 @@ function openMiniWindow(input = preferences) {
     miniWindow = new BrowserWindow({
       width, height: 250, useContentSize: true, minWidth: 260, minHeight: 200,
       maximizable: false, alwaysOnTop: true, backgroundColor: "#0e110f",
-      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true,
+        ...(address.external ? { preload: path.join(root, "desktop", "preload.cjs") } : {}),
+      },
     });
     miniWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     miniWindow.webContents.on("will-navigate", (event, url) => {
-      if (new URL(url).origin !== address.url) event.preventDefault();
+      if (address.external || new URL(url).origin !== address.url) event.preventDefault();
     });
     miniWindow.on("closed", () => { miniWindow = null; });
   } else miniWindow.setContentSize(width, 250);
   const window = miniWindow;
-  void window.loadURL(`${address.url}/mini.html?${new URLSearchParams(preferences)}`).catch((error) => {
+  const navigation = address.external
+    ? window.loadFile(miniFile, { query: preferences })
+    : window.loadURL(`${address.url}/mini.html?${new URLSearchParams(preferences)}`);
+  void navigation.catch((error) => {
     // Closing/reopening while a navigation is pending aborts that navigation.
     // A synchronous error box here would interrupt shutdown and orphan the app.
     if (quitting || window.isDestroyed() || error.code === "ERR_ABORTED") return;
@@ -87,14 +95,19 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", () => { if (ready) openMiniWindow(); });
   app.whenReady().then(async () => {
-    await startOrReuseServer();
-    sources = (await capabilities()).sources;
+    if (address.external) {
+      remoteDashboard = await createRemoteDashboard({ baseUrl: address.baseUrl, miniFile, getMiniWindow: () => miniWindow });
+      sources = ["local", "centralized"];
+    } else {
+      await startOrReuseServer();
+      sources = (await capabilities()).sources;
+    }
     ready = true;
     tray = new Tray(nativeImage.createFromPath(path.join(root, "public", "icon-192.png")).resize({ width: 16, height: 16 }));
     tray.setToolTip("Codex Usage");
     const menu = [
       { label: "Open mini quota window", click: () => openMiniWindow() },
-      { label: "Open dashboard", click: () => { void shell.openExternal(address.url); } },
+      { label: "Open dashboard", click: () => { if (remoteDashboard) void remoteDashboard.openDashboard(); else void shell.openExternal(address.url); } },
       { label: "Data source", submenu: sources.map((source) => ({
         label: source === "centralized" ? "Centralized" : "Local",
         click: () => openMiniWindow({ ...preferences, source }),
@@ -121,6 +134,7 @@ app.on("window-all-closed", () => { /* The tray keeps reopen and quit accessible
 app.on("activate", () => { if (ready && !quitting) openMiniWindow(); });
 app.on("before-quit", () => {
   quitting = true;
+  remoteDashboard?.close();
   serverProcess?.kill();
   tray?.destroy();
 });

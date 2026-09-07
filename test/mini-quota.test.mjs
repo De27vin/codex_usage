@@ -2,7 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText } from "../public/quota-display.js";
 import { createMiniData, selectMiniSource } from "../public/mini-data.js";
-import { desktopAddress, miniPreferences } from "../src/desktop-options.mjs";
+import { desktopAddress, miniPreferences, remoteApiUrl } from "../src/desktop-options.mjs";
+
+test("remote URLs opt out of local startup, respect paths, and reject embedded credentials", () => {
+  const address = desktopAddress({ PORT: "invalid" }, ["--url", "https://example.test/codex/"]);
+  assert.equal(address.external, true);
+  assert.equal(address.baseUrl, "https://example.test/codex/");
+  assert.equal(remoteApiUrl(address.baseUrl, "usage?source=centralized"), "https://example.test/codex/api/usage?source=centralized");
+  assert.equal(desktopAddress({ DASHBOARD_URL: "http://localhost:9000" }).baseUrl, "http://localhost:9000/");
+  assert.equal(desktopAddress({}, ["--url=https://example.test/index.html"]).baseUrl, "https://example.test/");
+  for (const url of ["file:///etc/passwd", "https://user:pass@example.test", "https://example.test/?token=secret", "https://example.test/#token"]) {
+    assert.throws(() => desktopAddress({ DASHBOARD_URL: url }));
+  }
+  assert.throws(() => desktopAddress({}, ["--url="]));
+  assert.throws(() => desktopAddress({}, ["--url"]));
+  for (const endpoint of ["https://other.test", "../admin", "usage?source=local&force=1", "cookies", "usage?source=wrong"]) assert.throws(() => remoteApiUrl(address.baseUrl, endpoint));
+});
 
 test("desktop preserves custom bind address and port, with connectable wildcard URLs", () => {
   assert.deepEqual(desktopAddress({ HOST: "0.0.0.0", PORT: "4328" }), { host: "0.0.0.0", port: 4328, url: "http://127.0.0.1:4328" });

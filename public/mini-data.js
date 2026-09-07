@@ -11,6 +11,10 @@ export function createMiniData({ fetchJson, onChange, now = Date.now }) {
   let pending = null;
   return {
     get snapshot() { return snapshot; },
+    clear() {
+      snapshot = { data: null, error: false, receivedAt: null, source };
+      onChange(snapshot);
+    },
     setSource(value) {
       if (source === value) return;
       source = value;

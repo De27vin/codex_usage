@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,6 +41,8 @@ async function setup() {
     SNAPSHOT_PATH: path.join(directory, "snapshot.json"), MESH_HUB_URL: "", DASHBOARD_MODE: "local" };
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.CODEX_DESKTOP_HELPER;
+  delete env.DASHBOARD_URL;
+  delete env.DASHBOARD_ACCESS_TOKEN;
   return { directory, env, url: `http://127.0.0.1:${port}` };
 }
 async function launch(fixture) {
@@ -123,6 +126,42 @@ test("native window, preferences, network errors, reopen and owned-server shutdo
   } finally { if (!closed) await closeApplication(application); }
 });
 
+test("remote API works without a hosted mini page or a local collector, rejects arbitrary IPC endpoints", { timeout: 60_000 }, async () => {
+  const fixture = await setup();
+  const requests = [];
+  const server = createHttpServer((request, response) => {
+    requests.push(request.url);
+    response.setHeader("Content-Type", "application/json");
+    if (request.url === "/dashboard/api/capabilities") response.end(JSON.stringify({ apiVersion: 1, sources: ["centralized"], defaultSource: "centralized" }));
+    else if (request.url === "/dashboard/api/usage?source=centralized") response.end(JSON.stringify({
+      generatedAt: new Date().toISOString(), weeklyQuota: { remainingPercent: 64, resetsAt: new Date(Date.now() + 86400_000).toISOString() },
+      fiveHourQuota: { remainingPercent: 82, resetsAt: new Date(Date.now() + 3600_000).toISOString() },
+      sessions: [{ title: "Never sent to the renderer" }],
+    }));
+    else { response.writeHead(404); response.end('{}'); }
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  fixture.env.DASHBOARD_URL = `http://127.0.0.1:${server.address().port}/dashboard/`;
+  const application = await launch(fixture);
+  try {
+    const page = await application.firstWindow({ timeout: 15_000 });
+    assert.match(page.url(), /^file:/);
+    await page.waitForFunction(() => document.querySelector("[data-remaining]").textContent === "82%", null, { polling: 100 });
+    const data = await page.evaluate(() => window.CodexDesktop.request("usage?source=centralized"));
+    assert.equal(data.data.sessions, undefined);
+    assert.equal(data.data.weeklyQuota.remainingPercent, 64);
+    await assert.rejects(page.evaluate(() => window.CodexDesktop.request("../admin")));
+    assert.ok(requests.every((url) => url.startsWith("/dashboard/api/")));
+    await assert.rejects(fetch(`${fixture.url}/api/health`));
+    assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()), true);
+  } finally {
+    await closeApplication(application);
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("desktop reuses an independent server and leaves it running on quit", { timeout: 60_000 }, async () => {
   const fixture = await setup();
   const server = spawn(process.execPath, [path.join(root, "server.mjs")], { env: fixture.env, cwd: root, stdio: "ignore", windowsHide: true });
@@ -140,5 +179,69 @@ test("desktop reuses an independent server and leaves it running on quit", { tim
     const exited = once(server, "exit");
     server.kill();
     await exited;
+  }
+});
+
+test("private hub association signs reads, survives restart and clears revoked quotas", { timeout: 90_000 }, async () => {
+  const { MeshHubStore } = await import("../src/mesh-hub-store.mjs");
+  const hub = new MeshHubStore();
+  const enrollment = await hub.createEnrollment();
+  const fixture = await setup();
+  const requests = [];
+  const server = createHttpServer(async (request, response) => {
+    requests.push(request.url);
+    response.setHeader("Content-Type", "application/json");
+    try {
+      let raw = "";
+      for await (const chunk of request) raw += chunk;
+      const body = raw ? JSON.parse(raw) : {};
+      if (request.url === "/api/mesh/enroll") response.end(JSON.stringify(await hub.enroll(body)));
+      else if (request.url === "/api/mesh/usage") {
+        await hub.readUsage(body);
+        response.end(JSON.stringify({ generatedAt: new Date().toISOString(),
+          fiveHourQuota: { remainingPercent: 37, resetsAt: new Date(Date.now() + 3600_000).toISOString() },
+          weeklyQuota: { remainingPercent: 61, resetsAt: new Date(Date.now() + 86400_000).toISOString() },
+          sessions: [{ title: "Private conversation" }],
+        }));
+      } else { response.writeHead(401); response.end('{}'); }
+    } catch (error) { response.writeHead(error.status || 500); response.end(JSON.stringify({ error: error.message })); }
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  fixture.env.DASHBOARD_URL = `http://127.0.0.1:${server.address().port}/`;
+  let application;
+  try {
+    application = await launch(fixture);
+    let page = await application.firstWindow();
+    await page.waitForFunction(() => !document.querySelector("#miniSignIn").hidden, null, { polling: 100 });
+    await page.locator("#miniAccessTitle").click();
+    await page.waitForFunction(() => innerHeight >= 500, null, { polling: 100, timeout: 3000 });
+    await page.locator("#miniHubUrl").fill(fixture.env.DASHBOARD_URL);
+    await page.locator("#miniAssociationCode").fill(enrollment.code);
+    await page.locator("#miniSaveAccess").click();
+    await page.waitForFunction(() => document.querySelector("[data-remaining]").textContent === "37%", null, { polling: 100 });
+    assert.equal(await page.locator("#miniAssociationCode").inputValue(), "");
+    const result = await page.evaluate(() => window.CodexDesktop.request("usage?source=centralized"));
+    assert.equal(result.data.sessions, undefined);
+    const nodeId = hub.nodes()[0].id;
+    const sequence = hub.state.nodes[nodeId].lastSequence;
+    await closeApplication(application); application = null;
+    application = await launch(fixture);
+    page = await application.firstWindow();
+    await page.waitForFunction(() => document.querySelector("[data-remaining]").textContent === "37%", null, { polling: 100 });
+    assert.equal(hub.nodes().length, 1);
+    assert.ok(hub.state.nodes[nodeId].lastSequence > sequence);
+    assert.ok(!requests.includes("/api/mesh/ingest"));
+    await assert.rejects(fetch(`${fixture.url}/api/health`));
+    await hub.revokeNode(nodeId);
+    await page.reload();
+    await page.waitForFunction(() => !document.querySelector("#miniSignIn").hidden, null, { polling: 100 });
+    assert.equal(await page.locator("[data-remaining]").first().textContent(), "—");
+    await page.screenshot({ path: path.join(fixture.directory, "association-required.png") });
+    console.log(`Association screenshots: ${fixture.directory}`);
+  } finally {
+    if (application) await closeApplication(application);
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
   }
 });

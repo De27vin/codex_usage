@@ -12,4 +12,10 @@ body { display: block; color: var(--text); background: var(--bg); font: 14px/1.4
 .quota-countdown { color: var(--text); }
 #miniStatus { margin: 8px 2px 0; color: var(--muted); font-size: 12px; }
 #miniStatus[data-error="true"], [data-stale="true"] .quota-observed { color: var(--danger); }
+#miniAccess { margin-top: 10px; }
+#miniAccess label { display: block; margin-top: 6px; font-size: 12px; }
+#miniAccess input { width: 100%; box-sizing: border-box; }
+#miniAccessHelp { font-size: 12px; color: var(--muted); }
+#miniAccessError { color: var(--danger); font-size: 12px; }
+#miniSignIn, #miniSaveAccess { margin-top: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); cursor: pointer; }
 @media (max-width: 400px) { .mini-card { grid-template-columns: 1fr; } }
