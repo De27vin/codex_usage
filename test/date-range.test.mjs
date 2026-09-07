@@ -41,6 +41,23 @@ test("12 months and all history are distinct main-page ranges", () => {
   assert.equal(timestampInRange("2024-01-01T00:00:00.000Z", allHistory), true);
 });
 
+test("WeeklyQuota includes the exact current quota start through now and rolls over at reset", () => {
+  const quota = { startsAt: "2026-09-03T14:37:00Z", resetsAt: "2026-09-10T14:37:00Z" };
+  const now = new Date("2026-09-07T15:00:00Z");
+  const range = resolveDateRange("weeklyQuota", null, now, quota);
+  assert.equal(range.start.toISOString(), "2026-09-03T14:37:00.000Z");
+  assert.deepEqual(range.end, now);
+  assert.equal(timestampInRange("2026-09-03T14:36:59Z", range), false);
+  assert.equal(timestampInRange(quota.startsAt, range), true);
+  const next = resolveDateRange("weeklyQuota", null, new Date(quota.resetsAt), quota);
+  assert.equal(next.start.toISOString(), "2026-09-10T14:37:00.000Z");
+});
+
+test("WeeklyQuota uses the existing seven-day fallback without quota observations", () => {
+  const range = resolveDateRange("weeklyQuota", null, new Date("2026-09-07T15:00:00Z"));
+  assert.equal(range.start.toISOString(), "2026-08-31T15:00:00.000Z");
+});
+
 test("weekly range starts 7 days before the current Codex reset", () => {
   const now = new Date("2026-08-14T15:00:00.000Z");
   const range = resolveWeeklyRange({ windowMinutes: 10080, resetsAt: "2026-08-20T12:00:00.000Z" }, now);
