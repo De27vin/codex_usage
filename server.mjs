@@ -212,7 +212,7 @@ const server = createServer(async (request, response) => {
 server.once("error", (error) => {
   usageCollector?.stop();
   if (error.code === "EADDRINUSE") {
-    console.error(`${errorHeading(cliText("dashboardAlreadyRunning"))}\n\n${cliText("dashboardAddressInUse", dashboardUrl)}`);
+    console.error(`${errorHeading(cliText("dashboardAddressOccupied"))}\n\n${cliText("dashboardAddressInUse", dashboardUrl)}`);
   } else console.error(cliText("dashboardStartFailed", error.message));
   process.exitCode = 1;
 });
