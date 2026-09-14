@@ -28,6 +28,16 @@ async function waitForServer(url, child) {
   throw new Error("Le serveur local ne devient pas disponible.");
 }
 
+function outputOf(child) {
+  let stdout = "", stderr = "";
+  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  return new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code, signal) => resolve({ code, signal, stdout, stderr }));
+  });
+}
+
 test("local HTTP adapter serves the generated UI and common API", async () => {
   const fixtureRoot = await mkdtemp(path.join(tmpdir(), "codex-usage-http-"));
   const sessions = path.join(fixtureRoot, "sessions");
@@ -74,6 +84,29 @@ test("local HTTP adapter serves the generated UI and common API", async () => {
     assert.equal(themesResponse.status, 200);
     assert.match(themesResponse.headers.get("content-type") ?? "", /javascript/);
     assert.match(await themesResponse.text(), /CodexUsageThemes/);
+
+    const occupied = net.createServer();
+    await new Promise((resolve, reject) => occupied.once("error", reject).listen(0, "127.0.0.1", resolve));
+    const occupiedPort = occupied.address().port;
+    try {
+      const { NO_COLOR: _noColor, ...blockedEnv } = process.env;
+      const blocked = spawn(process.execPath, ["server.mjs"], {
+        cwd: projectRoot,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...blockedEnv, FORCE_COLOR: "1", LANG: "C.UTF-8", LANGUAGE: "", HOST: "127.0.0.1", PORT: String(occupiedPort),
+          CODEX_SOURCE_MODE: "scoped", CODEX_SESSIONS_PATH: sessions, CODEX_ARCHIVED_SESSIONS_PATH: archives,
+          CODEX_SESSION_INDEX_PATH: index, SNAPSHOT_PATH: "", MESH_HUB_URL: "" },
+      });
+      const blockedResult = await outputOf(blocked);
+      assert.equal(blockedResult.code, 1);
+      assert.equal(blockedResult.signal, null);
+      assert.match(blockedResult.stderr, /\u001b\[1;31mAddress already in use!\u001b\[0m/);
+      assert.match(blockedResult.stderr, new RegExp(`http://127\\.0\\.0\\.1:${occupiedPort}`));
+      assert.doesNotMatch(blockedResult.stderr, /dashboard (?:is )?(?:already )?running|open it|EADDRINUSE|node:events/i);
+    } finally {
+      await new Promise((resolve, reject) => occupied.close((error) => error ? reject(error) : resolve()));
+    }
   } finally {
     child.kill();
     await Promise.race([
