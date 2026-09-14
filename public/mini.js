@@ -1,11 +1,16 @@
 import { LOCALE_TAGS, resolveLanguage } from "./translations.js";
-import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText, normalizeTimeFormat, timeFormatOptions } from "./quota-display.js";
+import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText, normalizeTimeFormat, initialMiniTimeFormat, timeFormatOptions } from "./quota-display.js";
 import { createMiniData, selectMiniSource } from "./mini-data.js";
 
 const params = new URLSearchParams(location.search);
 const stored = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 let language = resolveLanguage(params.get("language") || stored("codex-usage-language") || navigator.language) || "en";
-let timeFormat = normalizeTimeFormat(params.get("timeFormat") || stored("codex-usage-time-format"));
+const nativeDesktop = Boolean(globalThis.CodexDesktop) || /\bElectron\//.test(navigator.userAgent);
+let timeFormat = initialMiniTimeFormat({
+  queryValue: params.get("timeFormat"),
+  storedValue: stored("codex-usage-time-format"),
+  nativeDesktop,
+});
 const messages = {
   en: { fiveHour: "5 hours", weekly: "Weekly", loading: "Loading…", offline: "Connection lost", updated: "Checked", observed: "Observed", waiting: "Awaiting observation", local: "Local", centralized: "Centralized", remaining: "remaining" },
   fr: { fiveHour: "5 heures", weekly: "Hebdomadaire", loading: "Chargement…", offline: "Connexion perdue", updated: "Vérifié", observed: "Observé", waiting: "En attente d’observation", local: "Local", centralized: "Centralisé", remaining: "restant" },

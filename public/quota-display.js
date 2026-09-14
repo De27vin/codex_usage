@@ -4,6 +4,10 @@ export function normalizeTimeFormat(value) {
   return ["system", "12", "24"].includes(value) ? value : "system";
 }
 
+export function initialMiniTimeFormat({ queryValue, storedValue, nativeDesktop = false } = {}) {
+  return normalizeTimeFormat(nativeDesktop ? queryValue || storedValue : storedValue || queryValue);
+}
+
 export function timeFormatOptions(value) {
   const format = normalizeTimeFormat(value);
   if (format === "12") return { hour12: true };

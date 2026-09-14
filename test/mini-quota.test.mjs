@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText, normalizeTimeFormat, timeFormatOptions } from "../public/quota-display.js";
+import { weeklyQuotaPeriods, shortQuotaDisplay, quotaCountdownText, normalizeTimeFormat, initialMiniTimeFormat, timeFormatOptions } from "../public/quota-display.js";
 import { createMiniData, selectMiniSource } from "../public/mini-data.js";
 import { desktopAddress, miniPreferences, remoteApiUrl } from "../src/desktop-options.mjs";
 
@@ -42,6 +42,15 @@ test("time format accepts system, 12-hour and 24-hour preferences", () => {
   const date = new Date("2026-09-08T13:05:00Z");
   assert.match(date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", ...timeFormatOptions("12") }), /01:05 PM/);
   assert.match(date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", ...timeFormatOptions("24") }), /13:05/);
+});
+
+test("browser mini reload keeps the latest time format while native windows retain their handoff", () => {
+  const originalQuery = "12";
+  assert.equal(initialMiniTimeFormat({ queryValue: originalQuery }), "12");
+
+  const changedPreference = "24";
+  assert.equal(initialMiniTimeFormat({ queryValue: originalQuery, storedValue: changedPreference }), "24");
+  assert.equal(initialMiniTimeFormat({ queryValue: originalQuery, storedValue: changedPreference, nativeDesktop: true }), "12");
 });
 
 test("hosted mini uses centralized capabilities and local mini respects explicit source", () => {
